@@ -1,6 +1,22 @@
+
 import * as React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { View, ActivityIndicator } from 'react-native';
+import {  useAuth } from './context/AuthContext';
 import AppNavigator from 'navigation/AppNavigator';
+
+function RootNavigator() {
+  const { user, loading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </View>
+    );
+  }
+
+  return <AppNavigator initialRouteName={user ? 'Main' : 'Login'} />;
+}
 
 export default function App() {
   return (

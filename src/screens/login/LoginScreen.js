@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -16,15 +16,18 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import apiAuthService from 'services/apiAuthService';
 import { useNavigation } from '@react-navigation/native';
-import FlashMessage from 'react-native-flash-message';
+import { AuthContext } from 'context/AuthContext'; // Import AuthContext
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const navigation = useNavigation();
+  const { setAuthToken, setUser, hasRole } = useContext(AuthContext);
 
-  // Load custom fonts
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_600SemiBold,
@@ -34,81 +37,99 @@ export default function LoginScreen() {
     return null;
   }
 
-  // Handle input changes with length validation
-  const handleEmailChange = (text) => {
-    if (text.length > 255) {
-      Alert.alert('Error', 'The email must not exceed 255 characters.');
-      return;
+  const validateEmail = (text) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!text) {
+      return 'Email is required.';
     }
+    if (text.length > 255) {
+      return 'Email must not exceed 255 characters.';
+    }
+    if (!emailRegex.test(text)) {
+      return 'Invalid email format.';
+    }
+    return '';
+  };
+
+  const validatePassword = (text) => {
+    if (!text) {
+      return 'Password is required.';
+    }
+    if (text.length < 6) {
+      return 'Password must be at least 6 characters.';
+    }
+    if (text.length > 255) {
+      return 'Password must not exceed 255 characters.';
+    }
+    return '';
+  };
+
+  const handleEmailChange = (text) => {
     setEmail(text);
+    setEmailError(validateEmail(text));
   };
 
   const handlePasswordChange = (text) => {
-    if (text.length > 255) {
-      Alert.alert('Error', 'The email must not exceed 255 characters.');
-      return;
-    }
     setPassword(text);
+    setPasswordError(validatePassword(text));
   };
 
   const handleLogin = async () => {
-    // Validate empty fields
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter your email and password.');
-      console.log('Login validation failed: Missing email or password');
-      return;
-    }
+    const emailValid = validateEmail(email);
+    const passwordValid = validatePassword(password);
 
-    // Validate email format using regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Invalid email format. Please check and try again.');
-      console.log('Login validation failed: Invalid email format');
+    if (emailValid || passwordValid) {
+      setEmailError(emailValid);
+      setPasswordError(passwordValid);
       return;
     }
 
     setIsLoading(true);
     try {
       const response = await apiAuthService.login({ email, password });
-      console.log('Login response:', response);
-      Alert.alert('Success', 'Login success!');
-      navigation.replace('Main');
+      if (response.statusCode !== 200 || !response.data) {
+        throw new Error(response.message || 'Login failed.');
+      }
+
+      const { accessToken, refreshToken, userId, username, roles } = response.data;
+      if (!accessToken || !userId || !username || !Array.isArray(roles)) {
+        throw new Error('Invalid login response data.');
+      }
+      await AsyncStorage.setItem('refreshToken', refreshToken);
+      const userData = { userId, username, roles };
+      setAuthToken(accessToken);
+      setUser(userData);
+
+      const targetScreen = hasRole('Admin') ? 'AdminDashboard' : 'Main';
+      navigation.replace(targetScreen);
+
+      Alert.alert('Success', 'Login successful!');
     } catch (error) {
-      console.log('Login failed with status:', error.response?.status);
-      let message = 'An error has occurred. Please try again.';
+      console.log('Login failed:', error.response?.status, error.message);
+      let message = 'An error occurred. Please try again.';
 
       if (error.response?.status === 400) {
         const errorData = error.response.data;
         if (errorData.errors) {
           const errors = errorData.errors;
           if (errors.Email) {
-            if (errors.Email.includes('Email is required.')) {
-              message = 'Please enter your email.';
-            } else if (errors.Email.includes('Invalid email format.')) {
-              message = 'Invalid email format. Please check and try again.';
-            }
+            message = errors.Email[0] || 'Invalid email.';
           } else if (errors.Password) {
-            if (errors.Password.includes('Password is required.')) {
-              message = 'Please enter the password.';
-            } else if (errors.Password.includes('Password must be at least 6 characters.')) {
-              message = 'The password must be at least 6 characters long.';
-            }
+            message = errors.Password[0] || 'Invalid password.';
           }
         } else if (errorData.message) {
-          if (errorData.message.includes('Email or password is incorrect.')) {
-            message = 'Email or password is incorrect. Please try again.';
-          } else if (errorData.message.includes('Account is pending.')) {
-            message = 'The account has not been activated yet. Please check your email to activate it.';
-          } else if (errorData.message.includes('Account is blocked.')) {
-            message = 'The account has been locked. Please contact support.';
-          } else {
-            message = errorData.message;
-          }
+          message = errorData.message.includes('Email or password is incorrect.')
+            ? 'Invalid email or password.'
+            : errorData.message.includes('Account is pending.')
+            ? 'Account not activated. Check your email.'
+            : errorData.message.includes('Account is blocked.')
+            ? 'Account locked. Contact support.'
+            : errorData.message;
         }
       } else if (error.response?.status === 401) {
-        message = 'An authentication error has occurred. Please try again.';
+        message = 'Invalid credentials.';
       } else if (error.response?.status === 500) {
-        message = 'Server error. Please try again later.';
+        message = 'Server error. Please try later.';
       }
 
       Alert.alert('Error', message);
@@ -118,15 +139,9 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = () => {
-    if (!email) {
-      Alert.alert('Error', 'Please enter your email to reset the password.');
-      console.log('Forgot password validation failed: Missing email');
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Invalid email format. Please check and try again.');
-      console.log('Forgot password validation failed: Invalid email format');
+    const emailValid = validateEmail(email);
+    if (emailValid) {
+      setEmailError(emailValid);
       return;
     }
     navigation.navigate('Otp', { email });
@@ -135,26 +150,33 @@ export default function LoginScreen() {
   const handleFacebookLogin = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
-      console.log('Facebook login simulated');
-      Alert.alert('Success', 'Logged in with Facebook successfully!');
-      navigation.replace('Main');
+      // Replace with actual Facebook SDK integration
+      const token = 'mock_facebook_token'; // Placeholder
+      const response = await apiAuthService.facebookLogin({ token });
+      if (response.statusCode !== 200 || !response.data) {
+        throw new Error(response.message || 'Facebook login failed.');
+      }
+
+      const { accessToken, refreshToken, userId, username, roles } = response.data;
+      if (!accessToken || !userId || !username || !Array.isArray(roles)) {
+        throw new Error('Invalid Facebook login response data.');
+      }
+
+      // Update AuthContext
+      const userData = { userId, username, roles };
+      setAuthToken(accessToken);
+      setUser(userData);
+
+      // Navigate based on role
+      const targetScreen = hasRole('Admin') ? 'AdminDashboard' : 'Main';
+      navigation.replace(targetScreen);
+
+      Alert.alert('Success', 'Logged in with Facebook!');
     } catch (error) {
-      console.log('Facebook login failed with status:', error.response?.status);
-      let message = 'Cannot log in with Facebook. Please try again.';
+      console.log('Facebook login failed:', error.response?.status, error.message);
+      let message = 'Failed to log in with Facebook.';
       if (error.response?.status === 400) {
-        const errorData = error.response.data;
-        if (errorData.message) {
-          if (errorData.message.includes('Invalid Facebook token.')) {
-            message = 'Invalid Facebook token. Please try again.';
-          } else if (errorData.message.includes('Account is pending.')) {
-            message = 'The account has not been activated yet. Please check your email to activate.';
-          } else if (errorData.message.includes('Account is blocked.')) {
-            message = 'The account has been locked. Please contact support.';
-          } else {
-            message = errorData.message;
-          }
-        }
+        message = error.response.data.message || 'Invalid Facebook token.';
       }
       Alert.alert('Error', message);
     } finally {
@@ -165,28 +187,32 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
-      console.log('Google login simulated');
-      Alert.alert('Success', 'Logged in with Google successfully!');
-      navigation.replace('Main');
-    } catch (error) {
-      console.log('Google login failed with status:', error.response?.status);
-      let message = 'Cannot log in with Google. Please try again.';
-      if (error.response?.status === 400) {
-        const errorData = error.response.data;
-        if (errorData.message) {
-          if (errorData.message.includes('Invalid Google token.')) {
-            message = 'Invalid Google token. Please try again.';
-          } else if (errorData.message.includes('Account is pending.')) {
-            message = 'The account has not been activated yet. Please check your email to activate.';
-          } else if (errorData.message.includes('Account is blocked.')) {
-            message = 'The account has been locked. Please contact support.';
-          } else {
-            message = errorData.message;
-          }
-        }
+      const token = 'mock_google_token'; 
+      const response = await apiAuthService.googleLogin({ token });
+      if (response.statusCode !== 200 || !response.data) {
+        throw new Error(response.message || 'Google login failed.');
       }
-      Alert.alert('Lỗi', message);
+
+      const { accessToken, refreshToken, userId, username, roles } = response.data;
+      if (!accessToken || !userId || !username || !Array.isArray(roles)) {
+        throw new Error('Invalid Google login response data.');
+      }
+
+      const userData = { userId, username, roles };
+      setAuthToken(accessToken);
+      setUser(userData);
+
+      const targetScreen = hasRole('Admin') ? 'AdminDashboard' : 'Main';
+      navigation.replace(targetScreen);
+
+      Alert.alert('Success', 'Logged in with Google!');
+    } catch (error) {
+      console.log('Google login failed:', error.response?.status, error.message);
+      let message = 'Failed to log in with Google.';
+      if (error.response?.status === 400) {
+        message = error.response.data.message || 'Invalid Google token.';
+      }
+      Alert.alert('Error', message);
     } finally {
       setIsLoading(false);
     }
@@ -231,7 +257,7 @@ export default function LoginScreen() {
             />
           </View>
           <View style={styles.forgotPasswordContainer}>
-          <TouchableOpacity onPress={() => navigation.navigate('Otp')}>
+            <TouchableOpacity onPress={handleForgotPassword}>
               <Text style={styles.forgotPasswordText}>Forget Password?</Text>
             </TouchableOpacity>
           </View>
@@ -266,6 +292,7 @@ export default function LoginScreen() {
   );
 }
 
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,

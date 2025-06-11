@@ -10,8 +10,8 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../context/AuthContext';
-import { profileService } from '../../services/apiProfileService';
+import { useAuth } from 'context/AuthContext';
+import { profileService } from 'services/apiProfileService';
 
 const menuItems = [
   { id: '1', title: 'Profile', icon: 'person-outline' },
@@ -22,7 +22,7 @@ const menuItems = [
 ];
 
 export default function SettingsScreen({ navigation }) {
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -39,7 +39,7 @@ export default function SettingsScreen({ navigation }) {
           } else {
             Alert.alert('Error', response.message || 'Failed to load profile.');
           }
-        } else {
+        } else if (!authLoading) {
           Alert.alert('Error', 'Please log in.');
           navigation.replace('Login');
         }
@@ -49,8 +49,10 @@ export default function SettingsScreen({ navigation }) {
         setLoading(false);
       }
     };
-    fetchData();
-  }, [user, navigation]);
+    if (!authLoading) {
+      fetchData();
+    }
+  }, [user, authLoading, navigation]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -119,7 +121,7 @@ export default function SettingsScreen({ navigation }) {
     </TouchableOpacity>
   );
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <View style={styles.loadingContainer}>
         <Ionicons name="refresh" size={32} color="#2563EB" style={{ marginBottom: 10 }} />

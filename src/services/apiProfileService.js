@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Khởi tạo apiClient với cấu hình tương tự authService.js
 const apiClient = axios.create({
-  baseURL: 'https://09d7-2402-800-63b5-930f-556-5cca-e20-f136.ngrok-free.app/api',
+  baseURL: 'https://deba-2402-800-63b5-930f-556-5cca-e20-f136.ngrok-free.app/api',
   headers: {
     'Content-Type': 'application/json',
   },

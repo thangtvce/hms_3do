@@ -9,11 +9,11 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../context/AuthContext';
-import { profileService } from '../../services/apiProfileService';
+import { useAuth } from 'context/AuthContext';
+import { profileService } from 'services/apiProfileService';
 
 export default function ProfileScreen({ navigation }) {
-  const { user, authToken } = useAuth();
+  const { user, authToken, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +28,7 @@ export default function ProfileScreen({ navigation }) {
           } else {
             Alert.alert('Error', response.message || 'Failed to load profile.');
           }
-        } else {
+        } else if (!authLoading) {
           Alert.alert('Error', 'Please log in.');
           navigation.replace('Login');
         }
@@ -38,10 +38,12 @@ export default function ProfileScreen({ navigation }) {
         setLoading(false);
       }
     };
-    fetchData();
-  }, [user, authToken, navigation]);
+    if (!authLoading) {
+      fetchData();
+    }
+  }, [user, authToken, authLoading, navigation]);
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <View style={styles.loadingContainer}>
         <Ionicons name="refresh" size={32} color="#2563EB" style={{ marginBottom: 10 }} />

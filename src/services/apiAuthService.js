@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const apiClient = axios.create({
-  baseURL: 'https://deba-2402-800-63b5-930f-556-5cca-e20-f136.ngrok-free.app/api',
+  baseURL: 'https://a2d2-2402-800-63b5-930f-acd2-f39f-14cb-5625.ngrok-free.app/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -19,16 +19,49 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshToken = await AsyncStorage.getItem('refreshToken');
+        if (!refreshToken) {
+          throw new Error('No refresh token available');
+        }
+        const response = await apiClient.post('/Auth/refresh-token', { refreshToken });
+        if (response.data.statusCode === 200 && response.data.data) {
+          const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data;
+          await AsyncStorage.setItem('accessToken', newAccessToken);
+          await AsyncStorage.setItem('refreshToken', newRefreshToken);
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return apiClient(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error('Failed to refresh token in interceptor:', refreshError);
+        await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+        throw refreshError;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authService = {
   async register({ username, password, fullName, email, phone, roles = ['User'] }) {
     try {
       const response = await apiClient.post('/Auth/register', { username, password, fullName, email, phone, roles });
       return response.data;
     } catch (error) {
+      console.log('Register error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
       throw error;
     }
   },
-
   async login({ email, password }) {
     try {
       const response = await apiClient.post('/Auth/login', { email, password });
@@ -36,10 +69,13 @@ export const authService = {
         const { accessToken, refreshToken, userId, username, roles } = response.data.data;
         await AsyncStorage.setItem('accessToken', accessToken);
         await AsyncStorage.setItem('refreshToken', refreshToken);
-        await AsyncStorage.setItem('user', JSON.stringify({ userId, email: username, roles }));
-      }
+        const userData = JSON.stringify({ userId, email: username, roles });
+        await AsyncStorage.setItem('user', userData);
+        console.log('Saved to AsyncStorage:', { accessToken, refreshToken, userData });
+      }      
       return response.data;
     } catch (error) {
+      console.log('Login error:', error.response?.data || error.message);
       throw error;
     }
   },
@@ -51,7 +87,9 @@ export const authService = {
         const { accessToken, refreshToken, userId, username, roles } = response.data.data;
         await AsyncStorage.setItem('accessToken', accessToken);
         await AsyncStorage.setItem('refreshToken', refreshToken);
-        await AsyncStorage.setItem('user', JSON.stringify({ userId, email: username, roles }));
+        const userData = JSON.stringify({ userId, email: username, roles });
+        await AsyncStorage.setItem('user', userData);
+        console.log('Saved to AsyncStorage:', { accessToken, refreshToken, userData });
       }
       return response.data;
     } catch (error) {
@@ -66,7 +104,9 @@ export const authService = {
         const { accessToken, refreshToken, userId, username, roles } = response.data.data;
         await AsyncStorage.setItem('accessToken', accessToken);
         await AsyncStorage.setItem('refreshToken', refreshToken);
-        await AsyncStorage.setItem('user', JSON.stringify({ userId, email: username, roles }));
+        const userData = JSON.stringify({ userId, email: username, roles });
+        await AsyncStorage.setItem('user', userData);
+        console.log('Saved to AsyncStorage:', { accessToken, refreshToken, userData });
       }
       return response.data;
     } catch (error) {

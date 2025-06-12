@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { use, useState } from 'react';
 import {
   View,
   Text,
@@ -12,100 +12,98 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 
-export default function Step10({
+export default function PersonalInformationStep({
   formData,
   handleChange,
-  showPassword,
-  setShowPassword,
-  showConfirmPassword,
-  setShowConfirmPassword,
-  rememberMe,
-  setRememberMe,
+  handleHeightUnitChange,
+  handleWeightUnitChange,
   handleNextStep,
   handlePreviousStep,
   stepIndex,
   totalSteps,
 }) {
   const navigation = useNavigation();
-  const [errors, setErrors] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phone: '',
-  });
+  const [errorMessages, setErrorMessages] = useState([]);
+  const [ageError, setAgeError] = useState('');
+  const [heightError, setHeightError] = useState('');
+  const [weightError, setWeightError] = useState('');
 
   // Handle back navigation
   const handleBack = () => {
     handlePreviousStep();
   };
 
-  const validateInputs = () => {
-    const newErrors = {
-      email: '',
-      password: '',
-      confirmPassword: '',
-      phone: '',
-    };
-    let hasError = false;
+  // Validation functions
+  const validateAge = () => {
+    const ageNum = parseInt(formData.age);
+    if (!formData.age) return 'Age is required.';
+    if (isNaN(ageNum)) return 'Please enter a valid number for age.';
+    if (ageNum < 13 || ageNum > 120) return 'Please enter a valid age between 13 and 120.';
+    return null;
+  };
 
-    // Check required fields
-    if (!formData.email) {
-      newErrors.email = 'Email is required.';
-      hasError = true;
-    }
-    if (!formData.password) {
-      newErrors.password = 'Password is required.';
-      hasError = true;
-    }
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Confirm password is required.';
-      hasError = true;
-    }
-    if (!formData.phone) {
-      newErrors.phone = 'Phone number is required.';
-      hasError = true;
-    }
-
-    // If no missing fields, proceed with other validations
-    if (!hasError) {
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        newErrors.email = 'Please enter a valid email.';
-        hasError = true;
+  const validateHeight = () => {
+    const heightNum = parseFloat(formData.height);
+    if (!formData.height) return 'Height is required.';
+    if (isNaN(heightNum)) return 'Please enter a valid number for height.';
+    if (formData.heightUnit === 'cm') {
+      if (heightNum < 50 || heightNum > 300) {
+        return 'Please enter a valid height between 50 cm and 300 cm.';
       }
-
-      // Validate password length
-      if (formData.password.length < 6) {
-        newErrors.password = 'Password must be at least 6 characters.';
-        hasError = true;
-      }
-
-      // Validate password match
-      if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match.';
-        hasError = true;
-      }
-
-      // Validate phone number format
-      if (!/^\d{10}$/.test(formData.phone)) {
-        newErrors.phone = 'Phone number must be 10 digits.';
-        hasError = true;
+    } else if (formData.heightUnit === 'ft') {
+      if (heightNum < 1.5 || heightNum > 10) {
+        return 'Please enter a valid height between 1.5 ft and 10 ft.';
       }
     }
+    return null;
+  };
 
-    setErrors(newErrors);
-    if (hasError) {
-      Alert.alert('Error', 'Please correct the errors in the form.');
+  const validateWeight = () => {
+    const weightNum = parseFloat(formData.weight);
+    if (!formData.weight) return 'Weight is required.';
+    if (isNaN(weightNum)) return 'Please enter a valid number for weight.';
+    if (formData.weightUnit === 'kg') {
+      if (weightNum < 5 || weightNum > 300) {
+        return 'Please enter a valid weight between 5 kg and 300 kg.';
+      }
+    } else if (formData.weightUnit === 'lb') {
+      if (weightNum < 10 || weightNum > 660) {
+        return 'Please enter a valid weight between 10 lb and 660 lb.';
+      }
+    }
+    return null;
+  };
+
+  // Validate all fields
+  const validateAll = () => {
+    const newErrors = [
+      validateAge(),
+      validateHeight(),
+      validateWeight(),
+    ].filter((error) => error !== null);
+
+    setErrorMessages(newErrors);
+    if (newErrors.length > 0) {
+      Alert.alert(
+        'Input Error',
+        newErrors.join('\n'),
+        [{ text: 'OK' }],
+      );
       return false;
     }
     return true;
   };
 
+  // Handle next step
   const onNextStep = () => {
-    if (validateInputs()) {
+    if (validateAll()) {
       handleNextStep();
     }
+  };
+
+  // Validate on blur
+  const onBlurField = () => {
+    validateAll();
   };
 
   return (
@@ -115,105 +113,128 @@ export default function Step10({
         <Icon name="arrow-back" size={30} color="#000000" />
       </TouchableOpacity>
       <View style={styles.formCard}>
-        <Text style={styles.title}>Set Up Account</Text>
+        <Text style={styles.title}>Personal Information</Text>
         <View style={styles.progressBarContainer}>
           <View style={[styles.progressBar, { width: `${((stepIndex + 1) / totalSteps) * 100}%` }]} />
         </View>
-        <Text style={styles.subtitle}>Let's set up your account.</Text>
+        <Text style={styles.subtitle}>Tell us about yourself</Text>
+        <Text style={styles.label}>This helps us personalize your experience and calculate your nutritional needs.</Text>
 
-        <Text style={styles.inputLabel}>Email</Text>
+        {/* Age Input */}
+        <Text style={styles.inputLabel}>Age</Text>
         <TextInput
           style={styles.input}
-          value={formData.email}
-          onChangeText={(value) => handleChange('email', value)}
-          placeholder="Enter your email"
-          placeholderTextColor="#A0A0A0"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          accessibilityLabel="Email input"
-        />
-        {errors.email ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{errors.email}</Text>
-          </View>
-        ) : null}
-
-        <Text style={styles.inputLabel}>Password</Text>
-        <View style={styles.passwordContainer}>
-          <TextInput
-            style={styles.passwordInput}
-            value={formData.password}
-            onChangeText={(value) => handleChange('password', value)}
-            placeholder="Enter your password"
-            placeholderTextColor="#A0A0A0"
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-            accessibilityLabel="Password input"
-          />
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-            <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
-          </TouchableOpacity>
-        </View>
-        {errors.password ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{errors.password}</Text>
-          </View>
-        ) : null}
-
-        <Text style={styles.inputLabel}>Confirm Password</Text>
-        <View style={styles.passwordContainer}>
-          <TextInput
-            style={styles.passwordInput}
-            value={formData.confirmPassword}
-            onChangeText={(value) => handleChange('confirmPassword', value)}
-            placeholder="Confirm your password"
-            placeholderTextColor="#A0A0A0"
-            secureTextEntry={!showConfirmPassword}
-            autoCapitalize="none"
-            accessibilityLabel="Confirm password input"
-          />
-          <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-            <Text style={styles.toggleText}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
-          </TouchableOpacity>
-        </View>
-        {errors.confirmPassword ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{errors.confirmPassword}</Text>
-          </View>
-        ) : null}
-
-        <Text style={styles.inputLabel}>Phone Number</Text>
-        <TextInput
-          style={styles.input}
-          value={formData.phone}
-          onChangeText={(value) => handleChange('phone', value.replace(/[^0-9]/g, ''))}
-          placeholder="Enter your phone number (10 digits)"
+          value={formData.age}
+          onChangeText={(value) => handleChange('age', value.replace(/[^0-9]/g, ''))}
+          onBlur={onBlurField}
+          placeholder="Enter your age"
           placeholderTextColor="#A0A0A0"
           keyboardType="numeric"
-          accessibilityLabel="Phone number input"
+          accessibilityLabel="Age input"
+          maxLength={3}
         />
-        {errors.phone ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{errors.phone}</Text>
-          </View>
-        ) : null}
 
-        <View style={styles.checkboxContainer}>
-          <TouchableOpacity
-            style={styles.checkbox}
-            onPress={() => setRememberMe(!rememberMe)}
-          >
-            <View
-              style={
-                rememberMe ? styles.checkedBox : styles.uncheckedBox
-              }
+        {/* Height Input */}
+        <Text style={styles.inputLabel}>Height</Text>
+        <View style={styles.unitContainer}>
+          <TextInput
+            style={styles.unitInput}
+            value={formData.height}
+            onChangeText={(value) => handleChange('height', value.replace(/[^0-9.]/g, ''))}
+            onBlur={onBlurField}
+            placeholder="Enter your height"
+            placeholderTextColor="#A0A0A0"
+            keyboardType="numeric"
+            accessibilityLabel="Height input"
+            maxLength={6}
+          />
+          <View style={styles.unitToggle}>
+            <TouchableOpacity
+              style={[
+                styles.unitButton,
+                formData.heightUnit === 'cm' && styles.unitButtonSelected,
+              ]}
+              onPress={() => handleHeightUnitChange('cm')}
             >
-              {rememberMe && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <Text style={styles.checkboxText}>Remember me</Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.unitButtonText,
+                  formData.heightUnit === 'cm' && styles.unitButtonTextSelected,
+                ]}
+              >
+                cm
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.unitButton,
+                formData.heightUnit === 'ft' && styles.unitButtonSelected,
+              ]}
+              onPress={() => handleHeightUnitChange('ft')}
+            >
+              <Text
+                style={[
+                  styles.unitButtonText,
+                  formData.heightUnit === 'ft' && styles.unitButtonTextSelected,
+                ]}
+              >
+                ft
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
+        {/* Weight Input */}
+        <Text style={styles.inputLabel}>Weight</Text>
+        <View style={styles.unitContainer}>
+          <TextInput
+            style={styles.unitInput}
+            value={formData.weight}
+            onChangeText={(value) => handleChange('weight', value.replace(/[^0-9.]/g, ''))}
+            onBlur={onBlurField}
+            placeholder="Enter your weight"
+            placeholderTextColor="#A0A0A0"
+            keyboardType="numeric"
+            accessibilityLabel="Weight input"
+            maxLength={6}
+          />
+          <View style={styles.unitToggle}>
+            <TouchableOpacity
+              style={[
+                styles.unitButton,
+                formData.weightUnit === 'kg' && styles.unitButtonSelected,
+              ]}
+              onPress={() => handleWeightUnitChange('kg')}
+            >
+              <Text
+                style={[
+                  styles.unitButtonText,
+                  formData.weightUnit === 'kg' && styles.unitButtonTextSelected,
+                ]}
+              >
+                kg
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.unitButton,
+                formData.weightUnit === 'lb' && styles.unitButtonSelected,
+              ]}
+              onPress={() => handleWeightUnitChange('lb')}
+            >
+              <Text
+                style={[
+                  styles.unitButtonText,
+                  formData.weightUnit === 'lb' && styles.unitButtonTextSelected,
+                ]}
+              >
+                lb
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Navigation Buttons */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.backButton} onPress={handlePreviousStep}>
             <Text style={styles.backButtonText}>←</Text>
@@ -281,7 +302,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 16,
     color: '#000000',
-    marginBottom: 10,
+    marginBottom: 20,
+    textAlign: 'center',
   },
   inputLabel: {
     fontFamily: 'Inter_400Regular',
@@ -298,15 +320,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 16,
     color: '#000000',
-    marginBottom: 10,
+    marginBottom: 20,
   },
-  passwordContainer: {
+  unitContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    marginBottom: 10,
+    marginBottom: 20,
   },
-  passwordInput: {
+  unitInput: {
     flex: 1,
     height: 40,
     borderWidth: 1,
@@ -317,56 +339,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000000',
   },
-  toggleText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: '#1877F2',
+  unitToggle: {
+    flexDirection: 'row',
     marginLeft: 10,
   },
-  errorContainer: {
-    width: '100%',
-    marginBottom: 10,
-  },
-  errorText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: '#CC0000',
-  },
-  checkboxContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  checkbox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  checkedBox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: '#1877F2',
-    backgroundColor: '#1877F2',
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  uncheckedBox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
+  unitButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 4,
+    borderRadius: 8,
+    marginLeft: 5,
   },
-  checkmark: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+  unitButtonSelected: {
+    borderColor: '#1877F2',
+    backgroundColor: '#DBEAFE',
   },
-  checkboxText: {
+  unitButtonText: {
     fontFamily: 'Inter_400Regular',
     fontSize: 16,
     color: '#000000',
-    marginLeft: 10,
+  },
+  unitButtonTextSelected: {
+    color: '#1877F2',
   },
   buttonContainer: {
     flexDirection: 'row',

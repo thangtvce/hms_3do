@@ -22,6 +22,7 @@ import { AuthContext } from 'context/AuthContext';
 const { width } = Dimensions.get('window');
 
 const CommunityScreen = () => {
+  const [image, setImage] = useState(null);
   const navigation = useNavigation();
   const route = useRoute();
   const { user, authLoading, logout } = useContext(AuthContext);
@@ -72,6 +73,7 @@ const CommunityScreen = () => {
           CommunityService.fetchTags(),
         ]);
         if (isMounted) {
+          // console.log(...groupsData);
           setGroups(groupsData.length ? groupsData : []);
           setTags(tagsData);
         }
@@ -149,12 +151,113 @@ const CommunityScreen = () => {
   const searchPosts = async () => { /* ... */ };
   const fetchComments = async (postId) => { /* ... */ };
   const fetchReactions = async (postId) => { /* ... */ };
-  const handlePickQuickPostImage = async () => { /* ... */ };
-  const handlePost = async () => { /* ... */ };
+  const handlePickQuickPostImage = async () => { 
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setQuickPostImage(result.assets[0]);
+    }
+   };
+
+  const pickImage = async () => {    
+    // No permissions request is necessary for launching the image library
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
+    }
+  };
+
+  const handlePost = async (groupId, content) => {
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to post.');
+      return;
+    }
+    if (!content.trim() && !quickPostImage) {
+      Alert.alert('Error', 'Post content cannot be empty.');
+      return;
+    }
+    setIsQuickPostUploading(true);
+    setQuickPostError(null);
+    if (quickPostImage) {
+      // Upload image first if provided
+      try {
+        const uploadResponse = await CommunityService.uploadImage(quickPostImage);
+        if (uploadResponse.statusCode === 200) {
+          quickPostImage.uri = uploadResponse.data.imageUrl; // Use the uploaded image URL
+        } else {
+          throw new Error('Failed to upload image');
+        }
+      } catch (error) {
+        setQuickPostError(error.message || 'Failed to upload image');
+        setIsQuickPostUploading(false);
+        return;
+      }
+    }    
+    try {
+      const response = await CommunityService.createPost(
+        groupId,
+        content,
+        quickPostImage ? quickPostImage.uri : null, // Use the uploaded image URL or null
+        // hardcoded too
+        // "https://static.vecteezy.com/system/resources/previews/019/163/657/original/live-demo-icon-badge-label-icon-design-free-vector.jpg",
+      );
+      if (response.statusCode === 201) {
+        setPosts((prev) => [response.data, ...prev]);
+        setPostContent('');
+        setQuickPostImage(null);
+        setSelectedTags([]);
+        Alert.alert('Success', 'Post created successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to create post. Please try again.');
+        throw new Error('Failed to create post');
+      }
+    } catch (error) {
+      setQuickPostError(error.message || 'Failed to create post');
+    } finally {
+      setIsQuickPostUploading(false);
+    }
+  };
+
   const handleComment = async (postId) => { /* ... */ };
   const handleReaction = async (postId, reactionTypeId) => { /* ... */ };
   const handleReport = async () => { /* ... */ };
   const toggleComments = (postId) => { /* ... */ };
+
+  const handleJoinGroup = async (groupId) => {
+    try {
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to join a group.');
+        return;
+      }
+      const response = await CommunityService.joinGroup(groupId);
+      console.log(response.statusCode);
+      if (response.statusCode !== 500) {
+        Alert.alert('Success', 'You have joined the group.');
+        // setSelectedGroup((prev) => ({ ...prev, isJoin: true }));
+        // set joined group isJoin = true
+        setGroups((prevGroups) =>
+          prevGroups.map((group) =>
+            group.groupId === groupId ? { ...group, isJoin: true } : group
+          )
+        );
+      } else {
+        Alert.alert('Error', 'Failed to join the group.');
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to join the group.');
+    }
+  }
 
   // Updated renderGroup with enhanced styling
   const renderGroup = ({ item }) => {
@@ -168,7 +271,13 @@ const CommunityScreen = () => {
     return (
       <TouchableOpacity
         style={styles.groupItem}
-        onPress={() => setSelectedGroup(item)}
+        onPress={() => {
+          if (item.isPrivate && !item.isJoin) {
+            Alert.alert('Private Group', 'You need to join this group to view its content.');
+            return;
+          }
+          setSelectedGroup(item)
+        }}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
       >
@@ -186,6 +295,21 @@ const CommunityScreen = () => {
             )}
             <Text style={styles.groupMemberCount}>{item.memberCount || 0} members</Text>
           </View>
+
+
+          {/* Join button ========================== */}
+          {item.isJoin && <Text style={{ color: "green" }}>Joined</Text>}
+          {/* {item.isJoin && item.isPrivate && <Text style={{color: "red"}}>Pending</Text>} */}
+          {!item.isJoin && (
+            <TouchableOpacity
+              onPress={() => {
+                handleJoinGroup(item.groupId)
+                // console.log("Join group", item.isJoin, item.isPrivate)
+              }}
+            ><Text style={{ color: "blue" }}>Join</Text></TouchableOpacity>
+          )}
+
+
         </Animated.View>
       </TouchableOpacity>
     );
@@ -412,7 +536,7 @@ const CommunityScreen = () => {
           </View>
           <View style={styles.postInputContainer}>
             <Image source={{ uri: userAvatar }} style={styles.avatar} />
-            <View style={styles.postInputWrapper}>
+            <View>
               <TextInput
                 style={styles.postInput}
                 placeholder="What's on your mind?"
@@ -430,12 +554,18 @@ const CommunityScreen = () => {
                   <Text style={styles.postActionText}>Photo</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.postActionButton}>
-                  <Ionicons name="happy-outline" size= {20} color="#F7B928" />
+                  <Ionicons name="happy-outline" size={20} color="#F7B928" />
                   <Text style={styles.postActionText}>Feeling</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.postActionButton}>
                   <Text style={styles.gifText}>GIF</Text>
                 </TouchableOpacity>
+                <View>
+                {/* <TouchableOpacity onPress={() => pickImage()}>
+                  <Ionicons name="image-outline" size={20} color="#1877F2" />
+                </TouchableOpacity>
+                {image && <Image source={{ uri: image }} style={styles.image} />} */}
+              </View>
               </View>
               {quickPostImage && (
                 <View style={styles.imagePreview}>
@@ -480,9 +610,10 @@ const CommunityScreen = () => {
                 styles.postButton,
                 (!postContent.trim() || loading) && styles.postButtonDisabled,
               ]}
-              onPress={handlePost}
+              onPress={() => handlePost(selectedGroup.groupId, postContent)}
               disabled={!postContent.trim() || loading}
             >
+              
               <Text style={styles.postButtonText}>Post</Text>
             </TouchableOpacity>
           </View>
@@ -608,7 +739,7 @@ const CommunityScreen = () => {
                   style={[
                     styles.submitReportButton,
                     (!reportReasonId || !reportDetails.trim()) &&
-                      styles.submitReportButtonDisabled,
+                    styles.submitReportButtonDisabled,
                   ]}
                   onPress={handleReport}
                   disabled={!reportReasonId || !reportDetails.trim()}
@@ -640,7 +771,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 18,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E4E6EB',
@@ -648,6 +779,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+    marginTop: 40,
   },
   headerTitle: {
     fontSize: 20,
@@ -1162,6 +1294,10 @@ const styles = StyleSheet.create({
   },
   listFooter: {
     paddingVertical: 16,
+  },
+  image: {
+    width: 200,
+    height: 200,
   },
 });
 

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Khởi tạo apiClient với cấu hình tương tự authService.js
 const apiClient = axios.create({
-  baseURL: 'https://deba-2402-800-63b5-930f-556-5cca-e20-f136.ngrok-free.app/api',
+  baseURL: 'https://a2d2-2402-800-63b5-930f-acd2-f39f-14cb-5625.ngrok-free.app/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -21,30 +21,21 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor response: Xử lý refresh token khi nhận lỗi 401
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`Response: ${response.config.url}`, { status: response.status });
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        const refreshToken = await AsyncStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-        const response = await apiClient.post('/Auth/refresh-token', { refreshToken });
-        if (response.data.statusCode === 200 && response.data.data) {
-          const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data;
-          await AsyncStorage.setItem('accessToken', newAccessToken);
-          await AsyncStorage.setItem('refreshToken', newRefreshToken);
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          return apiClient(originalRequest);
-        }
-      } catch (refreshError) {
-        await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
-        throw refreshError;
-      }
+    console.error(`Response error for ${originalRequest.url}:`, {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data,
+    });
+    if (error.response?.status === 401) {
+      console.warn('401 Unauthorized, skipping token refresh for debugging');
+      throw new Error(error.response?.data?.message || 'Unauthorized access');
     }
     return Promise.reject(error);
   }

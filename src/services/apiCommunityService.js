@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const apiClient = axios.create({
-  baseURL: 'https://01fb-2402-800-6343-788e-fd29-b841-3178-1c4b.ngrok-free.app/api',
+  baseURL: 'https://a2d2-2402-800-63b5-930f-acd2-f39f-14cb-5625.ngrok-free.app/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -109,7 +109,7 @@ export default {
     }
   },
 
-  async createPost(groupId, content, thumbnail = '', tagIds = []) {
+  async createPost(groupId, content, thumbnail, tagIds = []) {
     try {
       const userId = await getUserId();
       const response = await apiClient.post('/CommunityPost', {
@@ -118,9 +118,10 @@ export default {
         thumbnail,
         tagIds,
         userId,
+        status: 'active', // This is hardcoded
       });
       console.log('Created post:', response.data.data.postId);
-      return response.data.data;
+      return response.data;
     } catch (error) {
       console.error('createPost error:', error.message);
       throw new Error(error.response?.data?.message || 'Failed to create post');
@@ -298,6 +299,17 @@ export default {
       throw new Error(error.response?.data?.message || 'Failed to create tag');
     }
   },
+
+  async joinGroup(groupId) {
+  try {    
+    const response = await apiClient.post('/GroupMember/join', { groupId });
+    console.log('Joined group:', response.data.data);
+    return response.data.data;
+  } catch (error) {
+    console.error('joinGroup error:', error.message);
+    throw new Error(error.response?.data?.message || 'Failed to join group');
+  }
+}
 };
 
 async function getUserId() {
@@ -318,4 +330,6 @@ async function getUserId() {
     console.error('getUserId error:', err.message);
     throw err;
   }
+  
 }
+

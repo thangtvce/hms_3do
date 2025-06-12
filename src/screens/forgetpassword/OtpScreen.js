@@ -18,6 +18,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 export default function OtpScreen() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
   const navigation = useNavigation();
   const route = useRoute();
   const [fontsLoaded] = useFonts({
@@ -34,6 +35,11 @@ export default function OtpScreen() {
     return null;
   }
   const handleEmailChange = (text) => {
+    if (!text) {
+      setEmailError('Please enter your email.');
+      return;
+    }
+
     if (text.length > 255) {
       Alert.alert('Error', 'The email must not exceed 255 characters.');
       return;
@@ -42,46 +48,49 @@ export default function OtpScreen() {
   };
 
   const handleSendOtp = async () => {
-    if (!email) {
-      Alert.alert('Error', 'Please enter email.');
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Invalid email format. Please check and try again.');
-      return;
-    }
+    // if (!email) {
+    //   Alert.alert('Error', 'Please enter email.');
+    //   return;
+    // }
+    // const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // if (!emailRegex.test(email)) {
+    //   Alert.alert('Error', 'Invalid email format. Please check and try again.');
+    //   return;
+    // }
     setIsLoading(true);
     try {
       const response = await apiAuthService.forgotPassword({ email });
-      console.log('OTP request sent for:', email);
-      Alert.alert('Success', 'OTP has been sent to your email. Please check your mailbox.');
+      console.log('Send success:', response.message);
+      Alert.alert('Success', response.message);
       navigation.navigate('ForgetPassword', { email });
     } catch (error) {
-      console.log('OTP request failed with status:', error.response?.status);
-      let message = 'An error occurred. Please try again.';
+      console.log('OTP request failed with status:', error.response?.data);
+      // let message = 'An error occurred. Please try again.';
 
-      if (error.response?.status === 400) {
+      if (error.response?.data.statusCode >= 400 || error.response?.data.status >= 400) {
         const errorData = error.response.data;
-        if (errorData.errors) {
-          const errors = errorData.errors;
-          if (errors.Email && errors.Email.includes('Invalid email format.')) {
-            message = 'Invalid email format. Please check and try again.';
-          }
+        if (errorData.errors) {        
+          const errors = errorData.errors;       
+          Alert.alert('Error', errors.Email[0]);
+          // if (errors.Email && errors.Email.includes('Invalid email format.')) {
+          //   // message = 'Invalid email format. Please check and try again.';
+          // }
         } else if (errorData.message) {
-          if (errorData.message.includes('Invalid email format.')) {
-            message = 'Invalid email format. Please check and try again.';
-          } else {
-            message = errorData.message;
-          }
+          Alert.alert('Error', errorData.message);
+          // if (errorData.message.includes('Invalid email format.')) {
+          //   // message = 'Invalid email format. Please check and try again.';
+          // } else {
+          //   message = errorData.message;
+          // }
         }
-      } else if (error.response?.status === 404) {
-        message = 'Email is not registered. Please try again.';
-      } else if (error.response?.status === 500) {
-        message = 'Server error. Please try again later.';
       }
+      // } else if (error.response?.status === 404) {
+      //   message = 'Email is not registered. Please try again.';
+      // } else if (error.response?.status === 500) {
+      //   message = 'Server error. Please try again later.';
+      // }
 
-      Alert.alert('Error', message);
+      // Alert.alert('Error', message);
     } finally {
       setIsLoading(false);
     }

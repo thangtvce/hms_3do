@@ -20,7 +20,20 @@ export default function Step1({
   totalSteps,
 }) {
   const navigation = useNavigation();
+  const [firstNameError, setFirstNameError] = React.useState('');
+  const handleFirstNameChange = (value) => {
+    if (value.length > 255) {
+      setFirstNameError('Name cannot exceed 255 characters.');
+      return;
+    }
 
+    if (!value) {
+      setFirstNameError('First name is required.');
+      return;
+    }
+    handleChange('firstName', value);
+    setFirstNameError('');
+  }
   // Handle back navigation
   const handleBack = () => {
     navigation.navigate('Login');
@@ -32,8 +45,8 @@ export default function Step1({
       Alert.alert('Error', 'Please enter your name.');
       return;
     }
-    if (formData.firstName.length > 50) {
-      Alert.alert('Error', 'Name cannot exceed 50 characters.');
+    if (formData.firstName.length > 255) {
+      Alert.alert('Error', 'Name cannot exceed 255 characters.');
       return;
     }
     handleNextStep();
@@ -54,17 +67,18 @@ export default function Step1({
         <TextInput
           style={styles.input}
           value={formData.firstName}
-          onChangeText={(value) => handleChange('firstName', value)}
+          onChangeText={(value) => handleFirstNameChange(value)}
           placeholder="Enter your name"
           placeholderTextColor="#A0A0A0"
           accessibilityLabel="First name input"
           maxLength={50}
         />
+        {firstNameError ? (<Text style={{ color: 'red', marginBottom: 10 }}>{firstNameError}</Text>) : null}
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={[styles.backButton, stepIndex === 0 && styles.backButtonDisabled]} disabled={stepIndex === 0}>
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+          <TouchableOpacity style={styles.nextButton} disabled={firstNameError !== "" || formData.firstName === ""} onPress={handleNext}>
             <Text style={styles.nextButtonText}>Next</Text>
           </TouchableOpacity>
         </View>

@@ -20,6 +20,8 @@ export default function ForgetPassword() {
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [otpError, setOtpError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
   const route = useRoute();
@@ -69,51 +71,56 @@ export default function ForgetPassword() {
   // Handle password reset
   const handleResetPassword = async () => {
     // Check for missing fields
-    if (!email || !otpCode || !newPassword) {
-      Alert.alert('Error', 'Please fill in all fields.');
-      console.log('Password reset failed: Missing fields');
-      return;
-    }
+    // if (!email || !otpCode || !newPassword) {
+    //   Alert.alert('Error', 'Please fill in all fields.');
+    //   console.log('Password reset failed: Missing fields');
+    //   return;
+    // }
 
-    // Validate email format using regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Invalid email format. Please try again.');
-      console.log('Password reset failed: Invalid email format');
-      return;
-    }
+    // // Validate email format using regex
+    // const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // if (!emailRegex.test(email)) {
+    //   Alert.alert('Error', 'Invalid email format. Please try again.');
+    //   console.log('Password reset failed: Invalid email format');
+    //   return;
+    // }
 
     setIsLoading(true);
     try {
       const response = await apiAuthService.resetPassword({ email, otpCode, newPassword });
-      console.log('Password reset successful for:', email);
-      Alert.alert('Success', 'Password reset successfully! Please log in.');
+      console.log('Success:', response.message);
+      Alert.alert('Success', response.message);
       navigation.replace('Login');
     } catch (error) {
-      console.log('Password reset failed with status:', error.response?.status);
+      console.log('Password reset failed with status:', error.response?.data);
       let message = 'Failed to reset password. Please try again.';
 
-      if (error.response?.status === 400) {
+      if (error.response?.status >= 400 || error.response?.data.statusCode >= 400) {
         const errorData = error.response.data;
         if (errorData.errors) {
           const errors = errorData.errors;
-          if (errors.Email && errors.Email.includes('Invalid email format.')) {
-            message = 'Invalid email format. Please try again.';
-          } else if (errors.NewPassword && errors.NewPassword.includes('New password must be at least 6 characters.')) {
-            message = 'New password must be at least 6 characters.';
+          if (errors.NewPassword) {
+            setPasswordError(errors.NewPassword[0]);
+            // message = 'New password must be at least 6 characters.';
+          }
+          if (errors.OtpCode) {
+            setOtpError(errors.OtpCode[0]);
+            // message = 'Invalid OTP code. Please try again.';
           }
         } else if (errorData.message) {
-          if (errorData.message.includes('Invalid email format.')) {
-            message = 'Invalid email format. Please try again.';
-          } else {
-            message = errorData.message;
-          }
+          // if (errorData.message.includes('Invalid email format.')) {
+          //   message = 'Invalid email format. Please try again.';
+          // } else {
+          //   message = errorData.message;
+          // }
+          Alert.alert('Error', errorData.message);
         }
-      } else if (error.response?.status === 500) {
-        message = 'Server error. Please try again later.';
       }
+      // } else if (error.response?.status === 500) {
+      //   message = 'Server error. Please try again later.';
+      // }
 
-      Alert.alert('Error', message);
+      // Alert.alert('Error', message);
     } finally {
       setIsLoading(false);
     }
@@ -140,13 +147,14 @@ export default function ForgetPassword() {
             <Icon name="email" size={20} color="#757575" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Enter your email"
-              placeholderTextColor="#757575"
+              // placeholder="Enter your email"
+              // placeholderTextColor="#757575"
               value={email}
-              onChangeText={handleEmailChange}
-              maxLength={255}
-              keyboardType="email-address"
-              autoCapitalize="none"
+              disabled
+              // onChangeText={handleEmailChange}
+              // maxLength={255}
+              // keyboardType="email-address"
+              // autoCapitalize="none"
             />
           </View>
           <View style={styles.inputContainer}>
@@ -161,6 +169,7 @@ export default function ForgetPassword() {
               keyboardType="numeric"
             />
           </View>
+          {otpError ? <Text style={{ color: 'red', marginBottom: 10 }}>{otpError}</Text> : null}
           <View style={styles.inputContainer}>
             <Icon name="lock" size={20} color="#757575" style={styles.inputIcon} />
             <TextInput
@@ -173,6 +182,7 @@ export default function ForgetPassword() {
               secureTextEntry
             />
           </View>
+          {passwordError ? <Text style={{ color: 'red', marginBottom: 10 }}>{passwordError}</Text> : null}
           <TouchableOpacity onPress={handleResetPassword} disabled={isLoading} style={styles.submitButton}>
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" />

@@ -13,12 +13,12 @@ export const AuthProvider = ({ children }) => {
 
   const validateUserData = (userData) => {
     if (!userData || typeof userData !== 'object') return false;
-    const { userId, username, roles } = userData;
+    const { userId, email, roles } = userData;
     return (
       userId &&
       typeof userId === 'number' &&
-      username &&
-      typeof username === 'string' &&
+      email &&
+      typeof email === 'string' &&
       Array.isArray(roles) &&
       roles.every((role) => typeof role === 'string')
     );
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
 
       if (token && refreshToken && userData) {
         if (!validateToken(token) || !validateToken(refreshToken)) {
-          console.log('Invalid token or refreshToken format, clearing storage');
+          console.log('Invalid token or refreshToken format');
           await logout();
           return;
         }
@@ -52,12 +52,12 @@ export const AuthProvider = ({ children }) => {
         try {
           parsedUser = JSON.parse(userData);
           if (!validateUserData(parsedUser)) {
-            console.log('Invalid user data format, clearing storage');
+            console.log('Invalid user data format');
             await logout();
             return;
           }
         } catch (parseErr) {
-          console.error('Failed to parse user data', parseErr);
+          console.error('Failed to parse user data:', parseErr);
           await logout();
           return;
         }
@@ -66,34 +66,52 @@ export const AuthProvider = ({ children }) => {
           const decoded = jwtDecode(token);
           const { exp } = decoded;
           if (!exp || typeof exp !== 'number') {
-            console.log('Token missing or invalid expiration, clearing storage');
-            await logout();
+            console.log('Token missing or invalid expiration');
+            await tryRefreshToken(refreshToken, parsedUser);
             return;
           }
 
-          const currentTime = Math.floor(Date.now() / 1000);
+          const currentTime = Math.floor(Date.now() / 1000); // TODO: Use server time if available
           if (exp > currentTime) {
             setAuthToken(token);
             setUser(parsedUser);
             scheduleTokenRefresh(token);
           } else {
             console.log('Token expired, attempting to refresh');
-            await refreshAccessToken();
+            await tryRefreshToken(refreshToken, parsedUser);
           }
         } catch (decodeErr) {
-          console.error('Failed to decode token', decodeErr);
-          await logout();
+          console.error('Failed to decode token:', decodeErr);
+          await tryRefreshToken(refreshToken, parsedUser);
         }
       } else {
-        console.log('Missing token, refreshToken, or user data, setting unauthenticated state');
+        console.log('Missing token, refreshToken, or user data');
         setAuthToken(null);
         setUser(null);
       }
     } catch (err) {
-      console.error('Failed to load token or user', err);
-      await logout();
+      console.error('Failed to load token or user:', err);
+      setAuthToken(null);
+      setUser(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const tryRefreshToken = async (refreshToken, parsedUser) => {
+    try {
+      const response = await authService.refreshToken();
+      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response;
+      if (validateToken(newAccessToken) && validateToken(newRefreshToken)) {
+        setAuthToken(newAccessToken);
+        setUser(parsedUser);
+        scheduleTokenRefresh(newAccessToken);
+      } else {
+        await logout();
+      }
+    } catch (refreshErr) {
+      console.error('Token refresh failed:', refreshErr);
+      await logout();
     }
   };
 
@@ -101,8 +119,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const decoded = jwtDecode(token);
       const { exp } = decoded;
-      if (!exp) {
-        console.warn('Token does not contain expiration time');
+      if (!exp || typeof exp !== 'number') {
+        console.warn('Token does not contain valid expiration time, refreshing immediately');
+        refreshAccessToken();
         return;
       }
       const currentTime = Math.floor(Date.now() / 1000);
@@ -118,20 +137,15 @@ export const AuthProvider = ({ children }) => {
         setRefreshTimer(timeout);
       }
     } catch (err) {
-      console.error('Failed to decode token in scheduleTokenRefresh', err);
-      logout();
+      console.error('Failed to decode token in scheduleTokenRefresh:', err);
+      refreshAccessToken();
     }
   };
 
   const refreshAccessToken = async () => {
     try {
       console.log('Attempting to refresh access token');
-      const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
-      if (!validateToken(storedRefreshToken)) {
-        throw new Error('Invalid or missing refresh token');
-      }
-
-      const response = await authService.refreshToken(storedRefreshToken);
+      const response = await authService.refreshToken();
       const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response;
 
       if (!validateToken(newAccessToken) || !validateToken(newRefreshToken)) {
@@ -142,7 +156,7 @@ export const AuthProvider = ({ children }) => {
       console.log('Token refreshed successfully');
       scheduleTokenRefresh(newAccessToken);
     } catch (err) {
-      console.error('Failed to refresh token', err);
+      console.error('Failed to refresh token:', err);
       await logout();
     }
   };
@@ -154,13 +168,12 @@ export const AuthProvider = ({ children }) => {
     try {
       await authService.logout();
     } catch (err) {
-      console.error('Logout failed', err);
+      console.error('Logout failed:', err);
     }
     await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
     console.log('User logged out, storage cleared');
   };
 
-  // Check if user has a specific role
   const hasRole = (role) => {
     if (!user || !Array.isArray(user.roles)) return false;
     return user.roles.includes(role);

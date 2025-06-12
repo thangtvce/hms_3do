@@ -75,14 +75,14 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    const emailValid = validateEmail(email);
-    const passwordValid = validatePassword(password);
+    // const emailValid = validateEmail(email);
+    // const passwordValid = validatePassword(password);
 
-    if (emailValid || passwordValid) {
-      setEmailError(emailValid);
-      setPasswordError(passwordValid);
-      return;
-    }
+    // if (emailValid || passwordValid) {
+    //   setEmailError("");
+    //   setPasswordError("");
+    //   return;
+    // }
 
     setIsLoading(true);
     try {
@@ -92,6 +92,7 @@ export default function LoginScreen() {
       }
 
       const { accessToken, refreshToken, userId, username, roles } = response.data;
+      console.log(response.data);
       if (!accessToken || !userId || !username || !Array.isArray(roles)) {
         throw new Error('Invalid login response data.');
       }
@@ -103,48 +104,52 @@ export default function LoginScreen() {
       const targetScreen = hasRole('Admin') ? 'AdminDashboard' : 'Main';
       navigation.replace(targetScreen);
 
-      Alert.alert('Success', 'Login successful!');
+      console.log('Login successful:', response);
+      Alert.alert('Success', response.message);
     } catch (error) {
-      console.log('Login failed:', error.response?.status, error.message);
-      let message = 'An error occurred. Please try again.';
+      console.log('Login failed:', error.response?.data, error.message);
+      // let message = 'An error occurred. Please try again.';      
 
-      if (error.response?.status === 400) {
+      if (error.response?.data.status === 400) {
         const errorData = error.response.data;
         if (errorData.errors) {
           const errors = errorData.errors;
           if (errors.Email) {
-            message = errors.Email[0] || 'Invalid email.';
+            setEmailError(errors.Email[0]);
+            // message = errors.Email[0] || 'Invalid email.';
           } else if (errors.Password) {
-            message = errors.Password[0] || 'Invalid password.';
+            setPasswordError(errors.Password[0]);
+            // message = errors.Password[0] || 'Invalid password.';
           }
-        } else if (errorData.message) {
-          message = errorData.message.includes('Email or password is incorrect.')
-            ? 'Invalid email or password.'
-            : errorData.message.includes('Account is pending.')
-            ? 'Account not activated. Check your email.'
-            : errorData.message.includes('Account is blocked.')
-            ? 'Account locked. Contact support.'
-            : errorData.message;
         }
-      } else if (error.response?.status === 401) {
-        message = 'Invalid credentials.';
-      } else if (error.response?.status === 500) {
-        message = 'Server error. Please try later.';
+         
+        // } else if (errorData.message) {
+        //   message = errorData.message.includes('Email or password is incorrect.')
+        //     ? 'Invalid email or password.'
+        //     : errorData.message.includes('Account is pending.')
+        //     ? 'Account not activated. Check your email.'
+        //     : errorData.message.includes('Account is blocked.')
+        //     ? 'Account locked. Contact support.'
+        //     : errorData.message;
+        // }
       }
+      // } else if (error.response?.status === 401) {
+      //   message = 'Invalid credentials.';
+      // } else if (error.response?.status === 500) {
+      //   message = 'Server error. Please try later.';
+      // }
 
-      Alert.alert('Error', message);
+      if (error.response?.data?.message) {
+        Alert.alert('Error', error.response.data.message);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleForgotPassword = () => {
-    const emailValid = validateEmail(email);
-    if (emailValid) {
-      setEmailError(emailValid);
-      return;
-    }
-    navigation.navigate('Otp', { email });
+   
+    navigation.navigate('Otp');
   };
 
   const handleFacebookLogin = async () => {
@@ -243,6 +248,7 @@ export default function LoginScreen() {
             autoCapitalize="none"
           />
         </View>
+        {emailError ? <Text style={{ color: 'red', marginBottom: 10 }}>{emailError}</Text> : null}
         <View style={styles.formContainer}>
           <View style={styles.inputContainer}>
             <Icon name="lock" size={20} color="#757575" style={styles.inputIcon} />
@@ -256,12 +262,13 @@ export default function LoginScreen() {
               secureTextEntry
             />
           </View>
+          {passwordError ? <Text style={{ color: 'red', marginBottom: 10 }}>{passwordError}</Text> : null}
           <View style={styles.forgotPasswordContainer}>
             <TouchableOpacity onPress={handleForgotPassword}>
               <Text style={styles.forgotPasswordText}>Forget Password?</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={handleLogin} disabled={isLoading} style={styles.loginButton}>
+          <TouchableOpacity onPress={handleLogin} disabled={isLoading || (passwordError !== "") || (emailError !== "")} style={styles.loginButton}>
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (

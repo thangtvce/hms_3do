@@ -12,51 +12,92 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 
-export default function Step11({
+export default function Step10({
   formData,
   handleChange,
-  handleNextStep,
+  showPassword,
+  setShowPassword,
+  // showConfirmPassword,
+  // setShowConfirmPassword,
+  // rememberMe,
+  // setRememberMe,
+  // handleNextStep,
   handlePreviousStep,
   stepIndex,
   totalSteps,
+  handleRegister,
+  emailError,
+  passwordError,
+  // confirmPasswordError,
+  phoneError,
 }) {
   const navigation = useNavigation();
-  const [error, setError] = useState('');
+  const [errorMessages, setErrorMessages] = useState([]);
 
   // Handle back navigation
   const handleBack = () => {
     handlePreviousStep();
   };
 
-  const validateAge = () => {
-    const ageNum = parseInt(formData.age);
-    if (!formData.age) {
-      setError('Age is required.');
-      return false;
-    }
-    if (isNaN(ageNum)) {
-      setError('Please enter a valid number.');
-      return false;
-    }
-    if (ageNum < 13 || ageNum > 120) {
-      setError('Please enter a valid age between 13 and 120.');
-      return false;
-    }
-    setError('');
-    return true;
-  };
+  // const validateInputs = () => {
+  //   const newErrors = [];
 
-  const onNextStep = () => {
-    if (validateAge()) {
-      handleNextStep();
-    } else {
-      Alert.alert('Error', error);
-    }
-  };
+  //   // Check required fields
+  //   if (!formData.email) {
+  //     newErrors.push('Email is required.');
+  //   }
+  //   if (!formData.password) {
+  //     newErrors.push('Password is required.');
+  //   }
+  //   if (!formData.confirmPassword) {
+  //     newErrors.push('Confirm password is required.');
+  //   }
+  //   if (!formData.phone) {
+  //     newErrors.push('Phone number is required.');
+  //   }
 
-  const onBlurAge = () => {
-    validateAge();
-  };
+  //   // If no missing fields, proceed with other validations
+  //   if (newErrors.length === 0) {
+  //     // Validate email format
+  //     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  //     if (!emailRegex.test(formData.email)) {
+  //       newErrors.push('Please enter a valid email.');
+  //     }
+
+  //     // Validate password length
+  //     if (formData.password.length < 6) {
+  //       newErrors.push('Password must be at least 6 characters.');
+  //     }
+
+  //     // Validate password match
+  //     if (formData.password !== formData.confirmPassword) {
+  //       newErrors.push('Passwords do not match.');
+  //     }
+
+  //     // Validate phone number format
+  //     if (!/^\d{10}$/.test(formData.phone)) {
+  //       newErrors.push('Phone number must be 10 digits.');
+  //     }
+  //   }
+
+  //   setErrorMessages(newErrors);
+  //   if (newErrors.length > 0) {
+  //     // Display popup with all errors
+  //     Alert.alert(
+  //       'Input Error',
+  //       newErrors.join('\n'), // Join errors with newlines
+  //       [{ text: 'OK' }],
+  //     );
+  //     return false;
+  //   }
+  //   return true;
+  // };
+
+  // const onNextStep = () => {
+  //   if (validateInputs()) {
+  //     handleNextStep();
+  //   }
+  // };
 
   return (
     <View style={styles.container}>
@@ -65,46 +106,106 @@ export default function Step11({
         <Icon name="arrow-back" size={30} color="#000000" />
       </TouchableOpacity>
       <View style={styles.formCard}>
-        <Text style={styles.title}>Personal Information</Text>
+        <Text style={styles.title}>Set Up Account</Text>
         <View style={styles.progressBarContainer}>
           <View style={[styles.progressBar, { width: `${((stepIndex + 1) / totalSteps) * 100}%` }]} />
         </View>
-        <Text style={styles.subtitle}>How old are you?</Text>
-        <Text style={styles.label}>This helps us personalize your experience.</Text>
+        <Text style={styles.subtitle}>Let's set up your account.</Text>
+
+        <Text style={styles.inputLabel}>Email</Text>
         <TextInput
           style={styles.input}
-          value={formData.age}
-          onChangeText={(value) => handleChange('age', value.replace(/[^0-9]/g, ''))}
-          onBlur={onBlurAge}
-          placeholder="Enter your age"
+          value={formData.email}
+          onChangeText={(value) => handleChange('email', value)}
+          placeholder="Enter your email"
+          placeholderTextColor="#A0A0A0"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          accessibilityLabel="Email input"
+        />
+        {emailError ? <Text style={{ color: 'red', marginBottom: 10 }}>{emailError}</Text> : null}
+
+        <Text style={styles.inputLabel}>Password</Text>
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            value={formData.password}
+            onChangeText={(value) => handleChange('password', value)}
+            placeholder="Enter your password"
+            placeholderTextColor="#A0A0A0"
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            accessibilityLabel="Password input"
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Text style={styles.toggleText}>{showPassword ? 'Hide' : 'Show'}</Text>
+          </TouchableOpacity>
+        </View>
+        {passwordError ? <Text style={{ color: 'red', marginBottom: 10 }}>{passwordError}</Text> : null}
+
+        {/* <Text style={styles.inputLabel}>Confirm Password</Text>
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            value={formData.confirmPassword}
+            onChangeText={(value) => handleChange('confirmPassword', value)}
+            placeholder="Confirm your password"
+            placeholderTextColor="#A0A0A0"
+            secureTextEntry={!showConfirmPassword}
+            autoCapitalize="none"
+            accessibilityLabel="Confirm password input"
+          />
+          <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+            <Text style={styles.toggleText}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
+          </TouchableOpacity>
+        </View>
+        {confirmPasswordError ? <Text style={{ color: 'red', marginBottom: 10 }}>{confirmPasswordError}</Text> : null} */}
+
+        <Text style={styles.inputLabel}>Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          value={formData.phone}
+          onChangeText={(value) => handleChange('phone', value.replace(/[^0-9]/g, ''))}
+          placeholder="Enter your phone number (10 digits)"
           placeholderTextColor="#A0A0A0"
           keyboardType="numeric"
-          accessibilityLabel="Age input"
-          maxLength={3}
+          accessibilityLabel="Phone number input"
         />
-        {error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+        {phoneError ? <Text style={{ color: 'red', marginBottom: 10 }}>{phoneError}</Text> : null}
+
+        {/* <View style={styles.checkboxContainer}>
+          <TouchableOpacity
+            style={styles.checkbox}
+            onPress={() => setRememberMe(!rememberMe)}
+          >
+            <View
+              style={
+                rememberMe ? styles.checkedBox : styles.uncheckedBox
+              }
+            >
+              {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.checkboxText}>Remember me</Text>
+          </TouchableOpacity>
+        </View> */}
+
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.backButton} onPress={handlePreviousStep}>
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.nextButton} onPress={onNextStep}>
+          <TouchableOpacity style={styles.nextButton} onPress={handleRegister}>
             <Text style={styles.nextButtonText}>Next</Text>
           </TouchableOpacity>
         </View>
       </View>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-   
     zIndex: 0,
   },
   backButtonArrow: {
@@ -151,13 +252,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: 'center',
   },
-  
   inputLabel: {
     fontFamily: 'Inter_400Regular',
     fontSize: 16,
     color: '#000000',
     marginBottom: 5,
-    
   },
   input: {
     height: 40,
@@ -168,17 +267,66 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 16,
     color: '#000000',
-    marginTop: 10,
     marginBottom: 10,
   },
-  errorContainer: {
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     width: '100%',
     marginBottom: 10,
   },
-  errorText: {
+  passwordInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#000000',
+    borderRadius: 8,
+    paddingHorizontal: 10,
     fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: '#CC0000',
+    fontSize: 16,
+    color: '#000000',
+  },
+  toggleText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    color: '#1877F2',
+    marginLeft: 10,
+  },
+  checkboxContainer: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  checkbox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkedBox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#1877F2',
+    backgroundColor: '#1877F2',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uncheckedBox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderRadius: 4,
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkboxText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    color: '#000000',
+    marginLeft: 10,
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -204,12 +352,6 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 30,
     alignItems: 'center',
-  },
-   label: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: '#000000',
-    textAlign: 'center',
   },
   nextButtonText: {
     fontFamily: 'Inter_600SemiBold',

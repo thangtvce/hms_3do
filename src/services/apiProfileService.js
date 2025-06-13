@@ -1,15 +1,14 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '@env';
 
-// Khởi tạo apiClient với cấu hình tương tự authService.js
 const apiClient = axios.create({
-  baseURL: 'https://24a1-2402-800-63b5-930f-ac5d-a560-ce0b-8912.ngrok-free.app/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Interceptor request: Thêm token vào header
 apiClient.interceptors.request.use(
   async (config) => {
     const accessToken = await AsyncStorage.getItem('accessToken');
@@ -23,12 +22,12 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`Response: ${response.config.url}`, { status: response.status });
+    console.log(`Response: ${response.config.url}`,{ status: response.status });
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
-    console.error(`Response error for ${originalRequest.url}:`, {
+    console.error(`Response error for ${originalRequest.url}:`,{
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
       data: error.response?.data,
@@ -42,7 +41,6 @@ apiClient.interceptors.response.use(
 );
 
 export const profileService = {
-  // Lấy hồ sơ mới nhất theo userId
   async getLatestProfile(userId) {
     try {
       const response = await apiClient.get(`/Profile/${userId}`);
@@ -52,7 +50,6 @@ export const profileService = {
     }
   },
 
-  // Lấy tất cả hồ sơ theo userId
   async getAllProfiles(userId) {
     try {
       const response = await apiClient.get(`/Profile/${userId}/all`);
@@ -62,7 +59,6 @@ export const profileService = {
     }
   },
 
-  // Lấy hồ sơ theo profileId
   async getProfileByProfileId(profileId) {
     try {
       const response = await apiClient.get(`/Profile/by-profile-id/${profileId}`);
@@ -72,20 +68,18 @@ export const profileService = {
     }
   },
 
-  // Cập nhật hồ sơ
-  async updateProfile(userId, profileData) {
+  async updateProfile(userId,profileData) {
     try {
-      const response = await apiClient.put(`/Profile/${userId}`, profileData);
+      const response = await apiClient.put(`/Profile/${userId}`,profileData);
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  // Thêm hồ sơ mới
   async addProfile(profileData) {
     try {
-      const response = await apiClient.post('/Profile', profileData);
+      const response = await apiClient.post('/Profile',profileData);
       return response.data;
     } catch (error) {
       throw error;

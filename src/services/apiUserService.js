@@ -1,15 +1,14 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '@env';
 
-// Initialize apiClient with base configuration
 const apiClient = axios.create({
-  baseURL: 'https://24a1-2402-800-63b5-930f-ac5d-a560-ce0b-8912.ngrok-free.app/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor: Add token to headers
 apiClient.interceptors.request.use(
   async (config) => {
     const accessToken = await AsyncStorage.getItem('accessToken');
@@ -21,15 +20,14 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: Log responses and handle errors
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`Response: ${response.config.url}`, { status: response.status });
+    console.log(`Response: ${response.config.url}`,{ status: response.status });
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
-    console.error(`Response error for ${originalRequest.url}:`, {
+    console.error(`Response error for ${originalRequest.url}:`,{
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
       data: error.response?.data,
@@ -43,10 +41,9 @@ apiClient.interceptors.response.use(
 );
 
 export const apiUserService = {
-  // Get paginated list of users
   async getAllUsers(queryParams = {}) {
     try {
-      const response = await apiClient.get('/User/manage-users', {
+      const response = await apiClient.get('/User/manage-users',{
         params: {
           PageNumber: queryParams.pageNumber || 1,
           PageSize: queryParams.pageSize || 10,
@@ -61,7 +58,6 @@ export const apiUserService = {
     }
   },
 
-  // Get all users without pagination
   async getAllUsersNoPagination() {
     try {
       const response = await apiClient.get('/User/all-users');
@@ -71,7 +67,6 @@ export const apiUserService = {
     }
   },
 
-  // Get users by role
   async getUsersByRole(roleId) {
     try {
       const response = await apiClient.get(`/User/by-role/${roleId}`);
@@ -81,7 +76,6 @@ export const apiUserService = {
     }
   },
 
-  // Get user by ID
   async getUserById(userId) {
     try {
       const response = await apiClient.get(`/User/${userId}`);
@@ -91,7 +85,6 @@ export const apiUserService = {
     }
   },
 
-  // Get trainers
   async getTrainers() {
     try {
       const response = await apiClient.get('/User/trainers');
@@ -101,17 +94,15 @@ export const apiUserService = {
     }
   },
 
-  // Update user
-  async updateUser(userId, userDto) {
+  async updateUser(userId,userDto) {
     try {
-      const response = await apiClient.put(`/User/${userId}`, userDto);
+      const response = await apiClient.put(`/User/${userId}`,userDto);
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  // Delete user (soft delete)
   async deleteUser(userId) {
     try {
       const response = await apiClient.delete(`/User/${userId}`);
@@ -121,10 +112,9 @@ export const apiUserService = {
     }
   },
 
-  // Get user statistics
-  async getUserStatistics(startDate, endDate) {
+  async getUserStatistics(startDate,endDate) {
     try {
-      const response = await apiClient.get('/User/statistics', {
+      const response = await apiClient.get('/User/statistics',{
         params: {
           startDate: startDate ? startDate.toISOString() : undefined,
           endDate: endDate ? endDate.toISOString() : undefined,
@@ -136,30 +126,27 @@ export const apiUserService = {
     }
   },
 
-  // Update user avatar
-  async updateAvatar(userId, avatarUrl) {
+  async updateAvatar(userId,avatarUrl) {
     try {
-      const response = await apiClient.put(`/User/${userId}/avatar`, { AvatarUrl: avatarUrl });
+      const response = await apiClient.put(`/User/${userId}/avatar`,{ AvatarUrl: avatarUrl });
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  // Update user status
-  async updateStatus(userId, status) {
+  async updateStatus(userId,status) {
     try {
-      const response = await apiClient.put(`/User/${userId}/status`, { Status: status });
+      const response = await apiClient.put(`/User/${userId}/status`,{ Status: status });
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  // Get deleted users (paginated)
   async getDeletedUsers(queryParams = {}) {
     try {
-      const response = await apiClient.get('/User/deleted', {
+      const response = await apiClient.get('/User/deleted',{
         params: {
           PageNumber: queryParams.pageNumber || 1,
           PageSize: queryParams.pageSize || 10,
@@ -174,7 +161,6 @@ export const apiUserService = {
     }
   },
 
-  // Permanently delete user
   async permanentlyDeleteUser(userId) {
     try {
       const response = await apiClient.delete(`/User/${userId}/permanent`);
@@ -184,20 +170,18 @@ export const apiUserService = {
     }
   },
 
-  // Restore a single user
-  async restoreUser(userId, status = 'active') {
+  async restoreUser(userId,status = 'active') {
     try {
-      const response = await apiClient.post(`/User/${userId}/restore`, { Status: status });
+      const response = await apiClient.post(`/User/${userId}/restore`,{ Status: status });
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  // Restore multiple users
-  async restoreUsers(userIds, status = 'active') {
+  async restoreUsers(userIds,status = 'active') {
     try {
-      const response = await apiClient.post('/User/restore', { UserIds: userIds, Status: status });
+      const response = await apiClient.post('/User/restore',{ UserIds: userIds,Status: status });
       return response.data;
     } catch (error) {
       throw error;

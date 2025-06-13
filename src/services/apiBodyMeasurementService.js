@@ -1,8 +1,9 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '@env';
 
 const apiClient = axios.create({
-  baseURL: 'https://24a1-2402-800-63b5-930f-ac5d-a560-ce0b-8912.ngrok-free.app/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -21,13 +22,10 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`Response: ${response.config.url}`, { status: response.status });
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
-    console.error(`Response error for ${originalRequest.url}:`, JSON.stringify(error.response?.data, null, 2));
-
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
@@ -35,18 +33,18 @@ apiClient.interceptors.response.use(
         if (!refreshToken) {
           throw new Error('No refresh token available');
         }
-        const response = await apiClient.post('/Auth/refresh-token', { refreshToken });
+        const response = await apiClient.post('/Auth/refresh-token',{ refreshToken });
         if (response.data.statusCode === 200 && response.data.data) {
-          const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data;
-          await AsyncStorage.setItem('accessToken', newAccessToken);
-          await AsyncStorage.setItem('refreshToken', newRefreshToken);
+          const { accessToken: newAccessToken,refreshToken: newRefreshToken } = response.data.data;
+          await AsyncStorage.setItem('accessToken',newAccessToken);
+          await AsyncStorage.setItem('refreshToken',newRefreshToken);
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return apiClient(originalRequest);
         }
         throw new Error('Failed to refresh token');
       } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
-        await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+        console.error('Token refresh failed:',refreshError);
+        await AsyncStorage.multiRemove(['accessToken','refreshToken','user']);
         throw new Error('Unauthorized access, please log in again.');
       }
     }
@@ -63,18 +61,18 @@ apiClient.interceptors.response.use(
 export const bodyMeasurementService = {
   async getAllMeasurements(queryParams = {}) {
     try {
-      const response = await apiClient.get('/BodyMeasurement', { params: queryParams });
-      console.log('getAllMeasurements response:', JSON.stringify(response.data, null, 2));
+      const response = await apiClient.get('/BodyMeasurement',{ params: queryParams });
+      console.log('getAllMeasurements response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  async getMeasurementsByUserId(userId, queryParams = {}) {
+  async getMeasurementsByUserId(userId,queryParams = {}) {
     try {
-      const response = await apiClient.get(`/BodyMeasurement/user/${userId}`, { params: queryParams });
-      console.log('getMeasurementsByUserId response:', JSON.stringify(response.data, null, 2));
+      const response = await apiClient.get(`/BodyMeasurement/user/${userId}`,{ params: queryParams });
+      console.log('getMeasurementsByUserId response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;
@@ -83,11 +81,9 @@ export const bodyMeasurementService = {
 
   async getMyMeasurements(queryParams = {}) {
     try {
-      const response = await apiClient.get('/BodyMeasurement/me', { params: queryParams });
-      console.log('getMyMeasurements response:', JSON.stringify(response.data, null, 2));
+      const response = await apiClient.get('/BodyMeasurement/me',{ queryParams });
       return response.data;
     } catch (error) {
-      console.error('getMyMeasurements error:', error);
       throw error;
     }
   },
@@ -95,7 +91,7 @@ export const bodyMeasurementService = {
   async getMeasurementById(measurementId) {
     try {
       const response = await apiClient.get(`/BodyMeasurement/${measurementId}`);
-      console.log('getMeasurementById response:', JSON.stringify(response.data, null, 2));
+      console.log('getMeasurementById response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;
@@ -104,19 +100,19 @@ export const bodyMeasurementService = {
 
   async addMeasurement(measurementData) {
     try {
-      const response = await apiClient.post('/BodyMeasurement', measurementData);
-      console.log('addMeasurement response:', JSON.stringify(response.data, null, 2));
+      const response = await apiClient.post('/BodyMeasurement',measurementData);
+      console.log('addMeasurement response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
-      console.error('addMeasurement error:', error);
+      console.error('addMeasurement error:',error);
       throw error;
     }
   },
 
-  async updateMeasurement(measurementId, measurementData) {
+  async updateMeasurement(measurementId,measurementData) {
     try {
-      const response = await apiClient.put(`/BodyMeasurement/${measurementId}`, measurementData);
-      console.log('updateMeasurement response:', JSON.stringify(response.data, null, 2));
+      const response = await apiClient.put(`/BodyMeasurement/${measurementId}`,measurementData);
+      console.log('updateMeasurement response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;
@@ -126,39 +122,39 @@ export const bodyMeasurementService = {
   async deleteMeasurement(measurementId) {
     try {
       const response = await apiClient.delete(`/BodyMeasurement/${measurementId}`);
-      console.log('deleteMeasurement response:', JSON.stringify(response.data, null, 2));
+      console.log('deleteMeasurement response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  async getUserStatistics(userId, startDate, endDate) {
+  async getUserStatistics(userId,startDate,endDate) {
     try {
-      const params = { startDate, endDate };
-      const response = await apiClient.get(`/BodyMeasurement/user/${userId}/statistics`, { params });
-      console.log('getUserStatistics response:', JSON.stringify(response.data, null, 2));
+      const params = { startDate,endDate };
+      const response = await apiClient.get(`/BodyMeasurement/user/${userId}/statistics`,{ params });
+      console.log('getUserStatistics response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  async getMyStatistics(startDate, endDate) {
+  async getMyStatistics(startDate,endDate) {
     try {
-      const params = { startDate, endDate };
-      const response = await apiClient.get('/BodyMeasurement/me/statistics', { params });
-      console.log('getMyStatistics response:', JSON.stringify(response.data, null, 2));
+      const params = { startDate,endDate };
+      const response = await apiClient.get('/BodyMeasurement/me/statistics',{ params });
+      console.log('getMyStatistics response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;
     }
   },
 
-  async getAverageMeasurementsByPeriod(userId, period) {
+  async getAverageMeasurementsByPeriod(userId,period) {
     try {
-      const response = await apiClient.get(`/BodyMeasurement/user/${userId}/average/period`, { params: { period } });
-      console.log('getAverageMeasurementsByPeriod response:', JSON.stringify(response.data, null, 2));
+      const response = await apiClient.get(`/BodyMeasurement/user/${userId}/average/period`,{ params: { period } });
+      console.log('getAverageMeasurementsByPeriod response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;
@@ -167,8 +163,8 @@ export const bodyMeasurementService = {
 
   async getMyAverageMeasurementsByPeriod(period) {
     try {
-      const response = await apiClient.get('/BodyMeasurement/me/average/period', { params: { period } });
-      console.log('getMyAverageMeasurementsByPeriod response:', JSON.stringify(response.data, null, 2));
+      const response = await apiClient.get('/BodyMeasurement/me/average/period',{ params: { period } });
+      console.log('getMyAverageMeasurementsByPeriod response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
       throw error;

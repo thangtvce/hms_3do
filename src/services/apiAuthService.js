@@ -1,8 +1,9 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '@env';
 
 const apiClient = axios.create({
-  baseURL: 'https://24a1-2402-800-63b5-930f-ac5d-a560-ce0b-8912.ngrok-free.app/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -30,17 +31,17 @@ apiClient.interceptors.response.use(
         if (!refreshToken) {
           throw new Error('No refresh token available');
         }
-        const response = await apiClient.post('/Auth/refresh-token', { refreshToken });
+        const response = await apiClient.post('/Auth/refresh-token',{ refreshToken });
         if (response.data.statusCode === 200 && response.data.data) {
-          const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data;
-          await AsyncStorage.setItem('accessToken', newAccessToken);
-          await AsyncStorage.setItem('refreshToken', newRefreshToken);
+          const { accessToken: newAccessToken,refreshToken: newRefreshToken } = response.data.data;
+          await AsyncStorage.setItem('accessToken',newAccessToken);
+          await AsyncStorage.setItem('refreshToken',newRefreshToken);
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
-        console.error('Failed to refresh token in interceptor:', refreshError);
-        await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+        console.error('Failed to refresh token in interceptor:',refreshError);
+        await AsyncStorage.multiRemove(['accessToken','refreshToken','user']);
         throw refreshError;
       }
     }
@@ -49,12 +50,12 @@ apiClient.interceptors.response.use(
 );
 
 export const authService = {
-  async register({ username, password, fullName, email, phone, roles = ['User'] }) {
+  async register({ username,password,fullName,email,phone,roles = ['User'] }) {
     try {
-      const response = await apiClient.post('/Auth/register', { username, password, fullName, email, phone, roles });
+      const response = await apiClient.post('/Auth/register',{ username,password,fullName,email,phone,roles });
       return response.data;
     } catch (error) {
-      console.log('Register error details:', {
+      console.log('Register error details:',{
         status: error.response?.status,
         data: error.response?.data,
         message: error.message,
@@ -62,59 +63,56 @@ export const authService = {
       throw error;
     }
   },
-  async login({ email, password }) {
+  async login({ email,password }) {
     try {
-      const response = await apiClient.post('/Auth/login', { email, password });
+      const response = await apiClient.post('/Auth/login',{ email,password });
       if (response.data.statusCode === 200 && response.data.data) {
-        const { accessToken, refreshToken, userId, username, roles } = response.data.data;
-        await AsyncStorage.setItem('accessToken', accessToken);
-        await AsyncStorage.setItem('refreshToken', refreshToken);
-        const userData = JSON.stringify({ userId, email: username, roles });
-        await AsyncStorage.setItem('user', userData);
-        console.log('Saved to AsyncStorage:', { accessToken, refreshToken, userData });
-      }      
+        const { accessToken,refreshToken,userId,username,roles } = response.data.data;
+        await AsyncStorage.setItem('accessToken',accessToken);
+        await AsyncStorage.setItem('refreshToken',refreshToken);
+        const userData = JSON.stringify({ userId,email: username,roles });
+        await AsyncStorage.setItem('user',userData);
+        console.log('Saved to AsyncStorage:',{ accessToken,refreshToken,userData });
+      }
       return response.data;
     } catch (error) {
-      console.log('Login error:', error.response?.data || error.message);
+      console.log('Login error:',error.response?.data || error.message);
       throw error;
     }
   },
-
   async googleLogin({ token }) {
     try {
-      const response = await apiClient.post('/Auth/google-login', { token });
+      const response = await apiClient.post('/Auth/google-login',{ token });
       if (response.data.statusCode === 200 && response.data.data) {
-        const { accessToken, refreshToken, userId, username, roles } = response.data.data;
-        await AsyncStorage.setItem('accessToken', accessToken);
-        await AsyncStorage.setItem('refreshToken', refreshToken);
-        const userData = JSON.stringify({ userId, email: username, roles });
-        await AsyncStorage.setItem('user', userData);
-        console.log('Saved to AsyncStorage:', { accessToken, refreshToken, userData });
+        const { accessToken,refreshToken,userId,username,roles } = response.data.data;
+        await AsyncStorage.setItem('accessToken',accessToken);
+        await AsyncStorage.setItem('refreshToken',refreshToken);
+        const userData = JSON.stringify({ userId,email: username,roles });
+        await AsyncStorage.setItem('user',userData);
+        console.log('Saved to AsyncStorage:',{ accessToken,refreshToken,userData });
       }
       return response.data;
     } catch (error) {
       throw error;
     }
   },
-
   async facebookLogin({ token }) {
     try {
-      const response = await apiClient.post('/Auth/facebook-login', { token });
+      const response = await apiClient.post('/Auth/facebook-login',{ token });
       if (response.data.statusCode === 200 && response.data.data) {
-        const { accessToken, refreshToken, userId, username, roles } = response.data.data;
-        await AsyncStorage.setItem('accessToken', accessToken);
-        await AsyncStorage.setItem('refreshToken', refreshToken);
-        const userData = JSON.stringify({ userId, email: username, roles });
-        await AsyncStorage.setItem('user', userData);
-        console.log('Saved to AsyncStorage:', { accessToken, refreshToken, userData });
+        const { accessToken,refreshToken,userId,username,roles } = response.data.data;
+        await AsyncStorage.setItem('accessToken',accessToken);
+        await AsyncStorage.setItem('refreshToken',refreshToken);
+        const userData = JSON.stringify({ userId,email: username,roles });
+        await AsyncStorage.setItem('user',userData);
+        console.log('Saved to AsyncStorage:',{ accessToken,refreshToken,userData });
       }
       return response.data;
     } catch (error) {
       throw error;
     }
   },
-
-  async activateAccount({ userId, token }) {
+  async activateAccount({ userId,token }) {
     try {
       const response = await apiClient.get(`/Auth/activate?userId=${userId}&token=${encodeURIComponent(token)}`);
       return response.data;
@@ -122,57 +120,52 @@ export const authService = {
       throw error;
     }
   },
-
   async logout() {
     try {
       const response = await apiClient.post('/Auth/logout');
-      await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+      await AsyncStorage.multiRemove(['accessToken','refreshToken','user']);
       return response.data;
     } catch (error) {
       throw error;
     }
   },
-
   async refreshToken() {
     try {
       const refreshToken = await AsyncStorage.getItem('refreshToken');
       if (!refreshToken) throw new Error('No refresh token available');
-      const response = await apiClient.post('/Auth/refresh-token', { refreshToken });
+      const response = await apiClient.post('/Auth/refresh-token',{ refreshToken });
       if (response.data.statusCode === 200 && response.data.data) {
-        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data;
-        await AsyncStorage.setItem('accessToken', newAccessToken);
-        await AsyncStorage.setItem('refreshToken', newRefreshToken);
-        return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+        const { accessToken: newAccessToken,refreshToken: newRefreshToken } = response.data.data;
+        await AsyncStorage.setItem('accessToken',newAccessToken);
+        await AsyncStorage.setItem('refreshToken',newRefreshToken);
+        return { accessToken: newAccessToken,refreshToken: newRefreshToken };
       } else {
         throw new Error('Failed to refresh token');
       }
     } catch (error) {
-      await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+      await AsyncStorage.multiRemove(['accessToken','refreshToken','user']);
       throw error;
     }
   },
-
   async forgotPassword({ email }) {
     try {
-      const response = await apiClient.post('/Auth/forgot-password', { email });
+      const response = await apiClient.post('/Auth/forgot-password',{ email });
       return response.data;
     } catch (error) {
       throw error;
     }
   },
-
   async changePassword({ email }) {
     try {
-      const response = await apiClient.post('/Auth/change-password', { email });
+      const response = await apiClient.post('/Auth/change-password',{ email });
       return response.data;
     } catch (error) {
       throw error;
     }
   },
-
-  async resetPassword({ email, otpCode, newPassword }) {
+  async resetPassword({ email,otpCode,newPassword }) {
     try {
-      const response = await apiClient.post('/Auth/reset-password', { email, otpCode, newPassword });
+      const response = await apiClient.post('/Auth/reset-password',{ email,otpCode,newPassword });
       return response.data;
     } catch (error) {
       throw error;

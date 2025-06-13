@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -32,8 +32,8 @@ export default function ProfileScreen({ navigation }) {
     weightHistory: true,
   });
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+  
       let isMounted = true;
       const abortController = new AbortController();
 
@@ -136,8 +136,9 @@ export default function ProfileScreen({ navigation }) {
         isMounted = false;
         abortController.abort();
       };
-    }, [user, authToken, authLoading, userData, profile, bodyMeasurements, weightHistory]),
-  );
+    // }, [user, authToken, authLoading, userData, profile, bodyMeasurements, weightHistory]),
+    // }, []),
+  }, [authToken, authLoading]);
 
   const handleEditProfile = () => {
     navigation.navigate('EditUserScreen', { user: userData });

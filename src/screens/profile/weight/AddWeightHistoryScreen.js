@@ -9,25 +9,48 @@ export default function AddWeightHistoryScreen({ navigation }) {
   const [formData, setFormData] = useState({ weight: '' });
 
   const handleSubmit = async () => {
-    try {
-      if (!formData.weight || isNaN(parseFloat(formData.weight))) {
-        Alert.alert('Error', 'Please enter a valid weight.');
-        return;
+    // Validate weight input locally
+    if (!formData.weight || isNaN(parseFloat(formData.weight))) {
+      Alert.alert('Error', 'Please enter a valid weight.');
+      return;
+    }
+
+    const response = await weightHistoryService.addWeightHistory({
+      userId: user.userId,
+      weight: parseFloat(formData.weight),
+      recordedAt: new Date().toISOString(),
+    });
+
+    // Handle response
+    if (response.statusCode === 201) {
+      Alert.alert('Success', response.message || 'Weight history added successfully.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } else {
+      let errorMessage = response.message || 'An error occurred.';
+      if (response.data && response.data.errors && typeof response.data.errors === 'object') {
+        // Extract validation errors safely
+        const validationErrors = Object.values(response.data.errors)
+          .filter((err) => Array.isArray(err))
+          .flat()
+          .filter((err) => typeof err === 'string')
+          .join('\n');
+        errorMessage = validationErrors || errorMessage;
       }
-      const response = await weightHistoryService.addWeightHistory({
-        userId: user.userId,
-        weight: parseFloat(formData.weight),
-        recordedAt: new Date().toISOString(),
-      });
-      if (response.statusCode === 201) {
-        Alert.alert('Success', 'Weight history added successfully.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      } else {
-        Alert.alert('Error', response.message || 'Failed to add weight history.');
+
+      switch (response.statusCode) {
+        case 400:
+          Alert.alert('Error', errorMessage || 'Invalid request data.');
+          break;
+        case 401:
+          Alert.alert('Error', errorMessage || 'You are not authorized to perform this action.');
+          break;
+        case 404:
+          Alert.alert('Error', errorMessage || 'Resource not found.');
+          break;
+        default:
+          Alert.alert('Error', errorMessage || 'Failed to add weight history.');
       }
-    } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to add weight history.');
     }
   };
 
@@ -59,8 +82,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F6F8FB',
-    
-
   },
   header: {
     flexDirection: 'row',
@@ -69,19 +90,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    
   },
   backButton: {
     padding: 8,
-      marginTop: 30,
+    marginTop: 30,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1E293B',
     marginLeft: 16,
-    marginTop
-    : 30,
+    marginTop: 30,
     textAlign: 'center',
     flex: 0.5,
   },

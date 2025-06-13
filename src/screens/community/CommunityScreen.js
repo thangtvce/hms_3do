@@ -19,6 +19,7 @@ import CommunityService from 'services/apiCommunityService';
 import * as ImagePicker from 'expo-image-picker';
 import { AuthContext } from 'context/AuthContext';
 
+
 const { width } = Dimensions.get('window');
 
 const CommunityScreen = () => {
@@ -145,7 +146,20 @@ const CommunityScreen = () => {
   }, [posts]);
 
   // Fetch functions (unchanged, summarized)
-  const fetchGroups = async () => { /* ... */ };
+    // const fetchGroups = async () => {
+    //   try {
+    //     setLoading(true);
+    //     setError(null);
+    //     const groupsData = await CommunityService.fetchGroups();
+    //     setGroups(groupsData.length ? groupsData : MOCK_GROUPS);
+    //   } catch (e) {
+    //     setError('Failed to load groups.');
+    //     setGroups(MOCK_GROUPS);
+    //     Alert.alert('Error', e.message);
+    //   } finally {
+    //     setLoading(false);
+    //   }
+    // };
   const fetchTags = async () => { /* ... */ };
   const fetchPosts = async (pageNumber) => { /* ... */ };
   const searchPosts = async () => { /* ... */ };
@@ -243,14 +257,17 @@ const CommunityScreen = () => {
       const response = await CommunityService.joinGroup(groupId);
       console.log(response.statusCode);
       if (response.statusCode !== 500) {
-        Alert.alert('Success', 'You have joined the group.');
-        // setSelectedGroup((prev) => ({ ...prev, isJoin: true }));
-        // set joined group isJoin = true
-        setGroups((prevGroups) =>
-          prevGroups.map((group) =>
-            group.groupId === groupId ? { ...group, isJoin: true } : group
-          )
-        );
+        Alert.alert('Success', 'You have joined the group.');        
+        // setGroups((prevGroups) =>
+        //   prevGroups.map((group) =>
+        //     group.groupId === groupId ? { ...group, isJoin: true } : group
+        //   )
+        // );
+
+        await CommunityService.fetchGroups()
+        .then((data) => {
+            setGroups(data);
+        })        
       } else {
         Alert.alert('Error', 'Failed to join the group.');
       }
@@ -272,8 +289,8 @@ const CommunityScreen = () => {
       <TouchableOpacity
         style={styles.groupItem}
         onPress={() => {
-          if (item.isPrivate && !item.isJoin) {
-            Alert.alert('Private Group', 'You need to join this group to view its content.');
+          if (!item.isJoin) {
+            Alert.alert('Forbidden', 'You need to join this group to view its content.');
             return;
           }
           setSelectedGroup(item)

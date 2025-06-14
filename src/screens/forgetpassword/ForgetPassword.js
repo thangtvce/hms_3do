@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React,{ useState,useEffect,useRef } from 'react';
 import {
   View,
   Text,
@@ -10,117 +10,219 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
+  SafeAreaView,
+  ScrollView,
+  Dimensions,
+  Image,
+  Animated,
 } from 'react-native';
-import { useFonts, Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useFonts,Inter_400Regular,Inter_600SemiBold,Inter_700Bold } from '@expo-google-fonts/inter';
+import { Ionicons } from '@expo/vector-icons';
 import apiAuthService from 'services/apiAuthService';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation,useRoute } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width,height } = Dimensions.get('window');
 
 export default function ForgetPassword() {
-  const [email, setEmail] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [email,setEmail] = useState('');
+  const [otpCode,setOtpCode] = useState('');
+  const [newPassword,setNewPassword] = useState('');
+  const [confirmPassword,setConfirmPassword] = useState('');
+  const [passwordError,setPasswordError] = useState('');
+  const [otpError,setOtpError] = useState('');
+  const [confirmPasswordError,setConfirmPasswordError] = useState('');
+  const [isLoading,setIsLoading] = useState(false);
+  const [showPassword,setShowPassword] = useState(false);
+  const [showConfirmPassword,setShowConfirmPassword] = useState(false);
+  const [isPasswordFocused,setIsPasswordFocused] = useState(false);
+
   const navigation = useNavigation();
   const route = useRoute();
+  const scrollViewRef = useRef(null);
 
-  // Pre-fill email from OtpScreen if provided
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+
   useEffect(() => {
     if (route.params?.email) {
       setEmail(route.params.email);
     }
-  }, [route.params?.email]);
 
-  // Load custom fonts
+    Animated.parallel([
+      Animated.timing(fadeAnim,{
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim,{
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  },[route.params?.email,fadeAnim,slideAnim]);
+
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_600SemiBold,
+    Inter_700Bold,
   });
 
   if (!fontsLoaded) {
-    return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+      </View>
+    );
   }
 
-  // Handle input changes with validation
-  const handleEmailChange = (text) => {
-    if (text.length > 255) {
-      Alert.alert('Error', 'Email cannot exceed 255 characters.');
-      return;
+  const validateOtp = (text) => {
+    if (!text) {
+      return 'OTP code is required';
     }
-    setEmail(text);
+    if (text.length < 4) {
+      return 'OTP code must be at least 4 digits';
+    }
+    return '';
+  };
+
+  const validatePassword = (text) => {
+    if (!text) {
+      return 'Password is required';
+    }
+    if (text.length < 6) {
+      return 'Password must be at least 6 characters';
+    }
+    if (text.length > 255) {
+      return 'Password must not exceed 255 characters';
+    }
+    return '';
+  };
+
+  const validateConfirmPassword = (text) => {
+    if (!text) {
+      return 'Please confirm your password';
+    }
+    if (text !== newPassword) {
+      return 'Passwords do not match';
+    }
+    return '';
   };
 
   const handleOtpChange = (text) => {
-    if (text.length > 50) {
-      Alert.alert('Error', 'OTP code cannot exceed 50 characters.');
-      return;
+    const sanitizedText = text.replace(/[^0-9]/g,'');
+
+    if (sanitizedText.length <= 50) {
+      setOtpCode(sanitizedText);
+      setOtpError(validateOtp(sanitizedText));
     }
-    setOtpCode(text);
   };
 
   const handleNewPasswordChange = (text) => {
-    if (text.length > 255) {
-      Alert.alert('Error', 'Password cannot exceed 255 characters.');
-      return;
+    if (text.length <= 255) {
+      setNewPassword(text);
+      setPasswordError(validatePassword(text));
+      if (confirmPassword) {
+        setConfirmPasswordError(validateConfirmPassword(confirmPassword));
+      }
     }
-    setNewPassword(text);
   };
 
-  // Handle password reset
+  const handleConfirmPasswordChange = (text) => {
+    if (text.length <= 255) {
+      setConfirmPassword(text);
+      setConfirmPasswordError(validateConfirmPassword(text));
+    }
+  };
+
+  const getPasswordStrength = (password) => {
+    if (!password) return { strength: 0,label: 'None',color: '#94A3B8' };
+
+    let strength = 0;
+    if (password.length >= 8) strength += 1;
+    if (/[A-Z]/.test(password)) strength += 1;
+    if (/[0-9]/.test(password)) strength += 1;
+    if (/[^A-Za-z0-9]/.test(password)) strength += 1;
+
+    const strengthMap = [
+      { label: 'Weak',color: '#EF4444' },
+      { label: 'Fair',color: '#F59E0B' },
+      { label: 'Good',color: '#10B981' },
+      { label: 'Strong',color: '#10B981' },
+      { label: 'Very Strong',color: '#10B981' }
+    ];
+
+    return {
+      strength: strength,
+      label: strengthMap[strength].label,
+      color: strengthMap[strength].color
+    };
+  };
+
+  const passwordStrength = getPasswordStrength(newPassword);
+
   const handleResetPassword = async () => {
-    // Check for missing fields
-    // if (!email || !otpCode || !newPassword) {
-    //   Alert.alert('Error', 'Please fill in all fields.');
-    //   console.log('Password reset failed: Missing fields');
-    //   return;
-    // }
-
-    // // Validate email format using regex
-    // const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    // if (!emailRegex.test(email)) {
-    //   Alert.alert('Error', 'Invalid email format. Please try again.');
-    //   console.log('Password reset failed: Invalid email format');
-    //   return;
-    // }
-
-    setIsLoading(true);
     try {
-      const response = await apiAuthService.resetPassword({ email, otpCode, newPassword });
-      console.log('Success:', response.message);
-      Alert.alert('Success', response.message);
-      navigation.replace('Login');
-    } catch (error) {
-      console.log('Password reset failed with status:', error.response?.data);
-      let message = 'Failed to reset password. Please try again.';
+      const otpValidation = validateOtp(otpCode);
+      const passwordValidation = validatePassword(newPassword);
+      const confirmPasswordValidation = validateConfirmPassword(confirmPassword);
 
-      if (error.response?.status >= 400 || error.response?.data.statusCode >= 400) {
+      setOtpError(otpValidation);
+      setPasswordError(passwordValidation);
+      setConfirmPasswordError(confirmPasswordValidation);
+
+      if (otpValidation || passwordValidation || confirmPasswordValidation) {
+        const firstError = otpValidation || passwordValidation || confirmPasswordValidation;
+        Alert.alert('Validation Error',firstError);
+        return;
+      }
+
+      setIsLoading(true);
+
+      const response = await apiAuthService.resetPassword({
+        email,
+        otpCode,
+        newPassword
+      });
+
+      if (response && response.message) {
+        Alert.alert(
+          'Success',
+          'Your password has been reset successfully.',
+          [{ text: 'OK',onPress: () => navigation.replace('Login') }]
+        );
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.log('Password reset failed:',error);
+
+      let errorMessage = 'Failed to reset password. Please try again.';
+
+      if (error.response?.data) {
         const errorData = error.response.data;
+
         if (errorData.errors) {
           const errors = errorData.errors;
-          if (errors.NewPassword) {
+
+          if (errors.NewPassword && errors.NewPassword.length > 0) {
             setPasswordError(errors.NewPassword[0]);
-            // message = 'New password must be at least 6 characters.';
-          }
-          if (errors.OtpCode) {
+            errorMessage = errors.NewPassword[0];
+          } else if (errors.OtpCode && errors.OtpCode.length > 0) {
             setOtpError(errors.OtpCode[0]);
-            // message = 'Invalid OTP code. Please try again.';
+            errorMessage = errors.OtpCode[0];
+          } else if (errors.Email && errors.Email.length > 0) {
+            errorMessage = errors.Email[0];
           }
         } else if (errorData.message) {
-          // if (errorData.message.includes('Invalid email format.')) {
-          //   message = 'Invalid email format. Please try again.';
-          // } else {
-          //   message = errorData.message;
-          // }
-          Alert.alert('Error', errorData.message);
+          errorMessage = errorData.message;
         }
+      } else if (error.message) {
+        errorMessage = error.message;
       }
-      // } else if (error.response?.status === 500) {
-      //   message = 'Server error. Please try again later.';
-      // }
 
-      // Alert.alert('Error', message);
+      Alert.alert('Error',errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -132,135 +234,469 @@ export default function ForgetPassword() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <KeyboardAvoidingView
-        style={styles.innerContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
+
+      <LinearGradient
+        colors={['#4F46E5','#6366F1','#818CF8']}
+        style={styles.headerGradient}
       >
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <Icon name="arrow-back" size={30} color="#000000" />
-        </TouchableOpacity>
-        <Text style={styles.welcome}>Reset Password</Text>
-        <View style={styles.formContainer}>
-          <View style={styles.inputContainer}>
-            <Icon name="email" size={20} color="#757575" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              // placeholder="Enter your email"
-              // placeholderTextColor="#757575"
-              value={email}
-              disabled
-              // onChangeText={handleEmailChange}
-              // maxLength={255}
-              // keyboardType="email-address"
-              // autoCapitalize="none"
-            />
-          </View>
-          <View style={styles.inputContainer}>
-            <Icon name="code" size={20} color="#757575" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter OTP code"
-              placeholderTextColor="#757575"
-              value={otpCode}
-              onChangeText={handleOtpChange}
-              maxLength={50}
-              keyboardType="numeric"
-            />
-          </View>
-          {otpError ? <Text style={{ color: 'red', marginBottom: 10 }}>{otpError}</Text> : null}
-          <View style={styles.inputContainer}>
-            <Icon name="lock" size={20} color="#757575" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter new password"
-              placeholderTextColor="#757575"
-              value={newPassword}
-              onChangeText={handleNewPasswordChange}
-              maxLength={255}
-              secureTextEntry
-            />
-          </View>
-          {passwordError ? <Text style={{ color: 'red', marginBottom: 10 }}>{passwordError}</Text> : null}
-          <TouchableOpacity onPress={handleResetPassword} disabled={isLoading} style={styles.submitButton}>
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.submitButtonText}>Reset Password</Text>
-            )}
+        <View style={styles.headerContent}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Reset Password</Text>
         </View>
-      </KeyboardAvoidingView>
-    </View>
+      </LinearGradient>
+
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+        >
+          <View style={styles.contentContainer}>
+            <Animated.View
+              style={[
+                styles.illustrationContainer,
+                { opacity: fadeAnim,transform: [{ translateY: slideAnim }] }
+              ]}
+            >
+              <Image
+                source={{ uri: 'https://letankim.id.vn/3do/uploads/images/1747652554_3.png' }}
+                style={styles.illustration}
+                resizeMode="contain"
+              />
+            </Animated.View>
+
+            <Animated.View
+              style={[
+                styles.formCard,
+                { opacity: fadeAnim,transform: [{ translateY: slideAnim }] }
+              ]}
+            >
+              <View style={styles.formHeader}>
+                <Ionicons name="lock-closed-outline" size={32} color="#4F46E5" />
+                <Text style={styles.formTitle}>Create New Password</Text>
+                <Text style={styles.formSubtitle}>
+                  Enter the verification code sent to your email and create a new password
+                </Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input,{ color: '#64748B' }]}
+                    value={email}
+                    editable={false}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Verification Code</Text>
+                <View style={[
+                  styles.inputContainer,
+                  otpError ? styles.inputError : null
+                ]}>
+                  <Ionicons name="key-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter verification code"
+                    placeholderTextColor="#94A3B8"
+                    value={otpCode}
+                    onChangeText={handleOtpChange}
+                    maxLength={50}
+                    keyboardType="numeric"
+                  />
+                </View>
+                {otpError ? (
+                  <Text style={styles.errorMessage}>
+                    <Ionicons name="alert-circle-outline" size={14} color="#EF4444" /> {otpError}
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>New Password</Text>
+                <View style={[
+                  styles.inputContainer,
+                  passwordError ? styles.inputError : null,
+                  isPasswordFocused ? styles.inputFocused : null
+                ]}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter new password"
+                    placeholderTextColor="#94A3B8"
+                    value={newPassword}
+                    onChangeText={handleNewPasswordChange}
+                    maxLength={255}
+                    secureTextEntry={!showPassword}
+                    onFocus={() => setIsPasswordFocused(true)}
+                    onBlur={() => setIsPasswordFocused(false)}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
+                </View>
+                {passwordError ? (
+                  <Text style={styles.errorMessage}>
+                    <Ionicons name="alert-circle-outline" size={14} color="#EF4444" /> {passwordError}
+                  </Text>
+                ) : null}
+
+                {newPassword.length > 0 && (
+                  <View style={styles.passwordStrengthContainer}>
+                    <Text style={styles.passwordStrengthLabel}>Password strength:</Text>
+                    <View style={styles.passwordStrengthBar}>
+                      {[...Array(4)].map((_,index) => (
+                        <View
+                          key={index}
+                          style={[
+                            styles.passwordStrengthSegment,
+                            {
+                              backgroundColor: index < passwordStrength.strength
+                                ? passwordStrength.color
+                                : '#E2E8F0'
+                            }
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    <Text style={[styles.passwordStrengthText,{ color: passwordStrength.color }]}>
+                      {passwordStrength.label}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Confirm Password</Text>
+                <View style={[
+                  styles.inputContainer,
+                  confirmPasswordError ? styles.inputError : null
+                ]}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirm your password"
+                    placeholderTextColor="#94A3B8"
+                    value={confirmPassword}
+                    onChangeText={handleConfirmPasswordChange}
+                    maxLength={255}
+                    secureTextEntry={!showConfirmPassword}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    <Ionicons
+                      name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
+                </View>
+                {confirmPasswordError ? (
+                  <Text style={styles.errorMessage}>
+                    <Ionicons name="alert-circle-outline" size={14} color="#EF4444" /> {confirmPasswordError}
+                  </Text>
+                ) : null}
+              </View>
+
+              <TouchableOpacity
+                onPress={handleResetPassword}
+                disabled={isLoading}
+                style={styles.submitButton}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                    <Text style={styles.submitButtonText}>Reset Password</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.securityTipContainer}>
+                <View style={styles.securityTipHeader}>
+                  <Ionicons name="shield-outline" size={18} color="#4F46E5" />
+                  <Text style={styles.securityTipTitle}>Password Tips</Text>
+                </View>
+                <Text style={styles.securityTipText}>
+                  • Use at least 8 characters{'\n'}
+                  • Include uppercase & lowercase letters{'\n'}
+                  • Add numbers and special characters{'\n'}
+                  • Avoid using personal information
+                </Text>
+              </View>
+            </Animated.View>
+
+            <View style={styles.healthTipContainer}>
+              <View style={styles.tipHeader}>
+                <Ionicons name="fitness-outline" size={20} color="#10B981" />
+                <Text style={styles.tipTitle}>Health & Security</Text>
+              </View>
+              <Text style={styles.tipText}>
+                Protecting your health data is as important as protecting your physical health. Strong passwords help keep your personal health information secure.
+              </Text>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#4F46E5",
+  },
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 0,
+    backgroundColor: '#F8FAFC',
   },
-  innerContainer: {
-    width: '100%',
+  headerGradient: {
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 20,
-    left: 20,
-    padding: 10,
-    zIndex: 10,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  welcome: {
-    fontFamily: 'Inter_600SemiBold',
-    color: '#000000',
-    fontSize: 30,
-    width: '100%',
-    marginTop: Platform.OS === 'ios' ? 100 : 70,
-    marginBottom: 20,
+  headerTitle: {
+    flex: 1,
     textAlign: 'center',
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 18,
+    color: '#FFFFFF',
+    marginRight: 40,
   },
-  formContainer: {
-    width: '100%',
-    alignItems: 'center',
+  scrollContent: {
     flexGrow: 1,
-    justifyContent: 'flex-start',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    width: '100%',
+  },
+  contentContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    backgroundColor: "#fff",
+  },
+  illustrationContainer: {
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  illustration: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  formCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0,height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  formHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  formTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 24,
+    color: '#1E293B',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  formSubtitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    color: '#334155',
+    marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: '99%',
-    backgroundColor: '#ffffff',
-    marginBottom: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#000000',
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  inputFocused: {
+    borderColor: '#4F46E5',
+    borderWidth: 2,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
-    height: 40,
-    fontSize: 16,
-    color: '#000000',
     fontFamily: 'Inter_400Regular',
+    fontSize: 16,
+    color: '#0F172A',
+  },
+  eyeIcon: {
+    padding: 8,
+  },
+  errorMessage: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 6,
+  },
+  passwordStrengthContainer: {
+    marginTop: 8,
+  },
+  passwordStrengthLabel: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  passwordStrengthBar: {
+    flexDirection: 'row',
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 4,
+  },
+  passwordStrengthSegment: {
+    flex: 1,
+    height: '100%',
+    marginRight: 2,
+    borderRadius: 2,
+  },
+  passwordStrengthText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
   },
   submitButton: {
-    backgroundColor: '#1877f2',
-    paddingVertical: 18,
+    flexDirection: 'row',
     alignItems: 'center',
-    width: '99%',
+    justifyContent: 'center',
+    backgroundColor: '#4F46E5',
+    borderRadius: 12,
+    height: 56,
+    marginTop: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#4F46E5',
+        shadowOffset: { width: 0,height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
   submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  securityTipContainer: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4F46E5',
+  },
+  securityTipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  securityTipTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    color: '#4F46E5',
+    marginLeft: 8,
+  },
+  securityTipText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 20,
+  },
+  healthTipContainer: {
+    width: '100%',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981',
+  },
+  tipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  tipTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+    color: '#10B981',
+    marginLeft: 8,
+  },
+  tipText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: '#334155',
+    lineHeight: 20,
   },
 });

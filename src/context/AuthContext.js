@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
             return;
           }
         } catch (parseErr) {
-          console.error('Failed to parse user data:', parseErr);
+          console.log('Failed to parse user data:', parseErr);
           await logout();
           return;
         }
@@ -71,7 +71,7 @@ export const AuthProvider = ({ children }) => {
             return;
           }
 
-          const currentTime = Math.floor(Date.now() / 1000); // TODO: Use server time if available
+          const currentTime = Math.floor(Date.now() / 1000); 
           if (exp > currentTime) {
             setAuthToken(token);
             setUser(parsedUser);
@@ -81,7 +81,7 @@ export const AuthProvider = ({ children }) => {
             await tryRefreshToken(refreshToken, parsedUser);
           }
         } catch (decodeErr) {
-          console.error('Failed to decode token:', decodeErr);
+          console.log('Failed to decode token:', decodeErr);
           await tryRefreshToken(refreshToken, parsedUser);
         }
       } else {
@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
       }
     } catch (err) {
-      console.error('Failed to load token or user:', err);
+      console.log('Failed to load token or user:', err);
       setAuthToken(null);
       setUser(null);
     } finally {
@@ -110,7 +110,7 @@ export const AuthProvider = ({ children }) => {
         await logout();
       }
     } catch (refreshErr) {
-      console.error('Token refresh failed:', refreshErr);
+      console.log('Token refresh failed:', refreshErr);
       await logout();
     }
   };
@@ -137,7 +137,7 @@ export const AuthProvider = ({ children }) => {
         setRefreshTimer(timeout);
       }
     } catch (err) {
-      console.error('Failed to decode token in scheduleTokenRefresh:', err);
+      console.log('Failed to decode token in scheduleTokenRefresh:', err);
       refreshAccessToken();
     }
   };
@@ -156,7 +156,7 @@ export const AuthProvider = ({ children }) => {
       console.log('Token refreshed successfully');
       scheduleTokenRefresh(newAccessToken);
     } catch (err) {
-      console.error('Failed to refresh token:', err);
+      console.log('Failed to refresh token:', err);
       await logout();
     }
   };
@@ -168,7 +168,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await authService.logout();
     } catch (err) {
-      console.error('Logout failed:', err);
+      console.log('Logout failed:', err);
     }
     await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
     console.log('User logged out, storage cleared');

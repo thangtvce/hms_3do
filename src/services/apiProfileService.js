@@ -27,7 +27,7 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    console.error(`Response error for ${originalRequest.url}:`,{
+    console.log(`Response error for ${originalRequest.url}:`,{
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
       data: error.response?.data,
@@ -50,14 +50,6 @@ export const profileService = {
     }
   },
 
-  async getAllProfiles(userId) {
-    try {
-      const response = await apiClient.get(`/Profile/${userId}/all`);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
 
   async getProfileByProfileId(profileId) {
     try {
@@ -77,12 +69,12 @@ export const profileService = {
     }
   },
 
-  async addProfile(profileData) {
+  async registerProfile(profileData) {
     try {
-      const response = await apiClient.post('/Profile',profileData);
+      const response = await apiClient.post('/Profile/register',profileData);
       return response.data;
     } catch (error) {
-      throw error;
+      throw error?.response?.data;
     }
   },
 };

@@ -40,7 +40,7 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
-        console.error('Failed to refresh token in interceptor:',refreshError);
+        console.log('Failed to refresh token in interceptor:',refreshError);
         await AsyncStorage.multiRemove(['accessToken','refreshToken','user']);
         throw refreshError;
       }

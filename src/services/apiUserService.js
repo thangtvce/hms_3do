@@ -15,6 +15,7 @@ apiClient.interceptors.request.use(
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
+    console.log(accessToken);
     return config;
   },
   (error) => Promise.reject(error)
@@ -27,7 +28,7 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    console.error(`Response error for ${originalRequest.url}:`,{
+    console.log(`Response error for ${originalRequest.url}:`,{
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
       data: error.response?.data,
@@ -78,7 +79,7 @@ export const apiUserService = {
 
   async getUserById(userId) {
     try {
-      const response = await apiClient.get(`/User/${userId}`);
+      const response = await apiClient.get(`/User/active/${userId}`);
       return response.data;
     } catch (error) {
       throw error;
@@ -96,7 +97,7 @@ export const apiUserService = {
 
   async updateUser(userId,userDto) {
     try {
-      const response = await apiClient.put(`/User/${userId}`,userDto);
+      const response = await apiClient.put(`/User/user/${userId}`,userDto);
       return response.data;
     } catch (error) {
       throw error;

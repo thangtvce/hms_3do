@@ -43,7 +43,7 @@ apiClient.interceptors.response.use(
         }
         throw new Error('Failed to refresh token');
       } catch (refreshError) {
-        console.error('Token refresh failed:',refreshError);
+        console.log('Token refresh failed:',refreshError);
         await AsyncStorage.multiRemove(['accessToken','refreshToken','user']);
         throw new Error('Unauthorized access, please log in again.');
       }
@@ -104,7 +104,7 @@ export const bodyMeasurementService = {
       console.log('addMeasurement response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {
-      console.error('addMeasurement error:',error);
+      console.log('addMeasurement error:',error);
       throw error;
     }
   },

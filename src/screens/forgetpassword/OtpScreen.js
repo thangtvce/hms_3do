@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+"use client"
+
+import { useState,useEffect,useRef } from "react"
 import {
   View,
   Text,
@@ -10,209 +12,442 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
-} from 'react-native';
-import { useFonts, Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import apiAuthService from 'services/apiAuthService';
-import { useNavigation, useRoute } from '@react-navigation/native';
+  SafeAreaView,
+  ScrollView,
+  Dimensions,
+  Image,
+  Animated,
+  ImageBackground,
+} from "react-native"
+import { useFonts,Inter_400Regular,Inter_600SemiBold,Inter_700Bold } from "@expo-google-fonts/inter"
+import { Ionicons } from "@expo/vector-icons"
+import apiAuthService from "services/apiAuthService"
+import { useNavigation,useRoute } from "@react-navigation/native"
+import { LinearGradient } from "expo-linear-gradient"
+
+const { width,height } = Dimensions.get("window")
+
 export default function OtpScreen() {
-  const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [emailError, setEmailError] = useState('');
-  const navigation = useNavigation();
-  const route = useRoute();
+  const [email,setEmail] = useState("")
+  const [isLoading,setIsLoading] = useState(false)
+  const [emailError,setEmailError] = useState("")
+  const navigation = useNavigation()
+  const route = useRoute()
+  const scrollViewRef = useRef(null)
+
+  const fadeAnim = useRef(new Animated.Value(0)).current
+  const slideAnim = useRef(new Animated.Value(50)).current
+
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_600SemiBold,
-  });
+    Inter_700Bold,
+  })
+
   useEffect(() => {
     if (route.params?.email) {
-      setEmail(route.params.email);
+      setEmail(route.params.email)
     }
-  }, [route.params?.email]);
+
+    Animated.parallel([
+      Animated.timing(fadeAnim,{
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim,{
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start()
+  },[route.params?.email,fadeAnim,slideAnim])
 
   if (!fontsLoaded) {
-    return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+      </View>
+    )
   }
-  const handleEmailChange = (text) => {
-    if (!text) {
-      setEmailError('Please enter your email.');
-      return;
-    }
 
-    if (text.length > 255) {
-      Alert.alert('Error', 'The email must not exceed 255 characters.');
-      return;
+  const validateEmail = (text) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!text) {
+      return "Email is required"
     }
-    setEmail(text);
-  };
+    if (text.length > 255) {
+      return "Email must not exceed 255 characters"
+    }
+    if (!emailRegex.test(text)) {
+      return "Please enter a valid email address"
+    }
+    return ""
+  }
+
+  const handleEmailChange = (text) => {
+    setEmail(text)
+    setEmailError(validateEmail(text))
+  }
 
   const handleSendOtp = async () => {
-    // if (!email) {
-    //   Alert.alert('Error', 'Please enter email.');
-    //   return;
-    // }
-    // const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    // if (!emailRegex.test(email)) {
-    //   Alert.alert('Error', 'Invalid email format. Please check and try again.');
-    //   return;
-    // }
-    setIsLoading(true);
     try {
-      const response = await apiAuthService.forgotPassword({ email });
-      console.log('Send success:', response.message);
-      Alert.alert('Success', response.message);
-      navigation.navigate('ForgetPassword', { email });
-    } catch (error) {
-      console.log('OTP request failed with status:', error.response?.data);
-      // let message = 'An error occurred. Please try again.';
-
-      if (error.response?.data.statusCode >= 400 || error.response?.data.status >= 400) {
-        const errorData = error.response.data;
-        if (errorData.errors) {        
-          const errors = errorData.errors;       
-          Alert.alert('Error', errors.Email[0]);
-          // if (errors.Email && errors.Email.includes('Invalid email format.')) {
-          //   // message = 'Invalid email format. Please check and try again.';
-          // }
-        } else if (errorData.message) {
-          Alert.alert('Error', errorData.message);
-          // if (errorData.message.includes('Invalid email format.')) {
-          //   // message = 'Invalid email format. Please check and try again.';
-          // } else {
-          //   message = errorData.message;
-          // }
-        }
+      const emailValidationError = validateEmail(email)
+      if (emailValidationError) {
+        setEmailError(emailValidationError)
+        Alert.alert("Validation Error",emailValidationError)
+        return
       }
-      // } else if (error.response?.status === 404) {
-      //   message = 'Email is not registered. Please try again.';
-      // } else if (error.response?.status === 500) {
-      //   message = 'Server error. Please try again later.';
-      // }
 
-      // Alert.alert('Error', message);
+      setIsLoading(true)
+      const response = await apiAuthService.forgotPassword({ email })
+
+      if (response && response.message) {
+        Alert.alert("Success",response.message || "Reset code sent successfully. Please check your email.")
+        navigation.navigate("ForgetPassword",{ email })
+      } else {
+        throw new Error("Invalid response from server")
+      }
+    } catch (error) {
+      console.log("OTP request failed:",error)
+
+      let errorMessage = "An error occurred. Please try again."
+
+      if (error.response?.data) {
+        const errorData = error.response.data
+
+        if (errorData.errors && errorData.errors.Email && errorData.errors.Email.length > 0) {
+          errorMessage = errorData.errors.Email[0]
+        } else if (errorData.message) {
+          errorMessage = errorData.message
+        }
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
+      Alert.alert("Error",errorMessage)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  // Handle back navigation
   const handleBack = () => {
-    navigation.navigate('Login');
-  };
+    navigation.navigate("Login")
+  }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <KeyboardAvoidingView
-        style={styles.innerContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
+      <LinearGradient
+        colors={["rgba(79, 70, 229, 0.95)","rgba(99, 102, 241, 0.9)","rgba(129, 140, 248, 0.85)"]}
+        style={styles.headerGradient}
       >
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <Icon name="arrow-back" size={30} color="#000000" />
-        </TouchableOpacity>
-        <Text style={styles.welcome}>Forget Password</Text>
-        <View style={styles.formContainer}>
-          <View style={styles.inputContainer}>
-            <Icon name="email" size={20} color="#757575" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Nhập email của bạn"
-              placeholderTextColor="#757575"
-              value={email}
-              onChangeText={handleEmailChange}
-              maxLength={255}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-          <TouchableOpacity onPress={handleSendOtp} disabled={isLoading} style={styles.submitButton}>
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.submitButtonText}>Submit</Text>
-            )}
+        <View style={styles.headerContent}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                      <Text style={styles.registerText}>Don't have an account, Sign up</Text>
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Password Recovery</Text>
         </View>
-      </KeyboardAvoidingView>
-    </View>
-  );
+      </LinearGradient>
+
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.keyboardAvoidingView}
+        >
+          <View style={styles.contentContainer}>
+            <Animated.View
+              style={[styles.illustrationContainer,{ opacity: fadeAnim,transform: [{ translateY: slideAnim }] }]}
+            >
+              <Image
+                source={{ uri: "https://letankim.id.vn/3do/uploads/images/1747652554_3.png" }}
+                style={styles.illustration}
+                resizeMode="cover"
+              />
+            </Animated.View>
+
+            <Animated.View style={[styles.formCard,{ opacity: fadeAnim,transform: [{ translateY: slideAnim }] }]}>
+              <View style={styles.formHeader}>
+                <Ionicons name="lock-open-outline" size={32} color="#4F46E5" />
+                <Text style={styles.formTitle}>Forgot Password</Text>
+                <Text style={styles.formSubtitle}>
+                  Enter your email address and we'll send you a code to reset your password
+                </Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <View style={[styles.inputContainer,emailError ? styles.inputError : null]}>
+                  <Ionicons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#94A3B8"
+                    value={email}
+                    onChangeText={handleEmailChange}
+                    maxLength={255}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+                {emailError ? (
+                  <Text style={styles.errorMessage}>
+                    <Ionicons name="alert-circle-outline" size={14} color="#EF4444" /> {emailError}
+                  </Text>
+                ) : null}
+              </View>
+
+              <TouchableOpacity onPress={handleSendOtp} disabled={isLoading} style={styles.submitButton}>
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="send-outline" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                    <Text style={styles.submitButtonText}>Send Reset Code</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.footerLinks}>
+                <TouchableOpacity onPress={() => navigation.navigate("Login")} style={styles.footerLink}>
+                  <Ionicons name="arrow-back-outline" size={16} color="#4F46E5" />
+                  <Text style={styles.footerLinkText}>Back to Login</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => navigation.navigate("Register")} style={styles.footerLink}>
+                  <Text style={styles.footerLinkText}>Create Account</Text>
+                  <Ionicons name="arrow-forward-outline" size={16} color="#4F46E5" />
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+
+            {/* CHANGE #6: Update health tip container with enhanced styling */}
+            <View style={styles.healthTipContainer}>
+              <View style={styles.tipHeader}>
+                <Ionicons name="fitness-outline" size={20} color="#10B981" />
+                <Text style={styles.tipTitle}>Health Tip</Text>
+              </View>
+              <Text style={styles.tipText}>
+                Regular password changes help keep your health data secure. Use strong, unique passwords for better
+                protection.
+              </Text>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </ScrollView>
+    </SafeAreaView>
+  )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 0,
+    backgroundColor: "#4F46E5",
   },
-  innerContainer: {
-    width: '100%',
-    alignItems: 'center',
+  backgroundPattern: {
     flex: 1,
+    width: "100%",
+    height: "100%"
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#4F46E5",
+  },
+  headerGradient: {
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 16 : 16,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
   },
   backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 20,
-    left: 20,
-    padding: 10,
-    zIndex: 10,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
-  welcome: {
-    fontFamily: 'Inter_600SemiBold',
-    color: '#000000',
-    fontSize: 30,
-    width: '100%',
-    marginTop: Platform.OS === 'ios' ? 100 : 70,
-    marginBottom: 20,
-    textAlign: 'center',
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 18,
+    color: "#FFFFFF",
+    marginRight: 40,
   },
-  formContainer: {
-    width: '100%',
-    alignItems: 'center',
+  scrollContent: {
     flexGrow: 1,
-    justifyContent: 'flex-start',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    width: "100%",
+  },
+  contentContainer: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    backgroundColor: "#fff",
+  },
+  illustrationContainer: {
+    alignItems: "center",
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  illustration: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+  },
+  formCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0,height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  formHeader: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  formTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 24,
+    color: "#1E293B",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  formSubtitle: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    color: "#334155",
+    marginBottom: 8,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '99%',
-    backgroundColor: 'white',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#000000',
-    marginBottom: 20,
+    borderColor: "#CBD5E1",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  inputError: {
+    borderColor: "#EF4444",
+    backgroundColor: "#FEF2F2",
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
-    height: 40,
+    fontFamily: "Inter_400Regular",
     fontSize: 16,
-    color: '#000000',
-    fontFamily: 'Inter_400Regular',
+    color: "#0F172A",
+  },
+  errorMessage: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 12,
+    color: "#EF4444",
+    marginTop: 6,
   },
   submitButton: {
-    backgroundColor: '#1877f2',
-    paddingVertical: 18,
-    alignItems: 'center',
-    width: '99%',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4F46E5",
+    borderRadius: 12,
+    height: 56,
+    marginTop: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#4F46E5",
+        shadowOffset: { width: 0,height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
   submitButtonText: {
-    color: '#FFFFFF',
+    fontFamily: "Inter_600SemiBold",
     fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
+    color: "#FFFFFF",
   },
-  registerText: {
-    color: '#000000',
+  footerLinks: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 24,
+  },
+  footerLink: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  footerLinkText: {
+    fontFamily: "Inter_600SemiBold",
     fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    marginTop: 20,
+    color: "#4F46E5",
+    marginHorizontal: 4,
   },
-});
+
+  healthTipContainer: {
+    width: "100%",
+    backgroundColor: "rgba(240, 253, 244, 0.95)",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: "#10B981",
+    shadowColor: "#000",
+    shadowOffset: { width: 0,height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  tipTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 16,
+    color: "#10B981",
+    marginLeft: 8,
+  },
+  tipText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    color: "#334155",
+    lineHeight: 20,
+  },
+})

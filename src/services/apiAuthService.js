@@ -40,7 +40,6 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
-        console.error('Failed to refresh token in interceptor:',refreshError);
         await AsyncStorage.multiRemove(['accessToken','refreshToken','user']);
         throw refreshError;
       }
@@ -50,9 +49,9 @@ apiClient.interceptors.response.use(
 );
 
 export const authService = {
-  async register({ username,password,fullName,email,phone,roles = ['User'] }) {
+  async register(dataRegister) {
     try {
-      const response = await apiClient.post('/Auth/register',{ username,password,fullName,email,phone,roles });
+      const response = await apiClient.post('/Auth/register',dataRegister);
       return response.data;
     } catch (error) {
       console.log('Register error details:',{
@@ -60,7 +59,7 @@ export const authService = {
         data: error.response?.data,
         message: error.message,
       });
-      throw error;
+      throw error?.response?.data;
     }
   },
   async login({ email,password }) {
@@ -72,7 +71,6 @@ export const authService = {
         await AsyncStorage.setItem('refreshToken',refreshToken);
         const userData = JSON.stringify({ userId,email: username,roles });
         await AsyncStorage.setItem('user',userData);
-        console.log('Saved to AsyncStorage:',{ accessToken,refreshToken,userData });
       }
       return response.data;
     } catch (error) {

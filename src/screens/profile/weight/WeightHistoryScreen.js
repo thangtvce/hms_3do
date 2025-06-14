@@ -1,40 +1,104 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Dimensions } from 'react-native';
+import React,{ useState,useEffect,useCallback } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    FlatList,
+    TouchableOpacity,
+    Alert,
+    Dimensions,
+    RefreshControl,
+    ActivityIndicator,
+    SafeAreaView,
+    Platform,
+    StatusBar,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { weightHistoryService } from 'services/apiWeightHistoryService';
 import { useAuth } from 'context/AuthContext';
 import { LineChart } from 'react-native-chart-kit';
+import { useFocusEffect } from '@react-navigation/native';
 
 const screenWidth = Dimensions.get('window').width;
 
 export default function WeightHistoryScreen({ navigation }) {
-    const { user, authToken } = useAuth();
-    const [history, setHistory] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [timeFrame, setTimeFrame] = useState('all');
+    const { user,authToken } = useAuth();
+    const [history,setHistory] = useState([]);
+    const [loading,setLoading] = useState(true);
+    const [refreshing,setRefreshing] = useState(false);
+    const [timeFrame,setTimeFrame] = useState('all');
+    const [stats,setStats] = useState({
+        current: 0,
+        lowest: 0,
+        highest: 0,
+        average: 0,
+        change: 0,
+    });
 
-    const fetchWeightHistory = async () => {
+    const fetchWeightHistory = async (showLoading = true) => {
         try {
-            setLoading(true);
+            if (showLoading) setLoading(true);
             if (user && authToken) {
-                const response = await weightHistoryService.getMyWeightHistory({ pageNumber: 1, pageSize: 50 });
+                const response = await weightHistoryService.getMyWeightHistory({ pageNumber: 1,pageSize: 100 });
                 if (response.statusCode === 200 && response.data) {
-                    const sortedRecords = (response.data.records || []).sort((a, b) =>
+                    const sortedRecords = (response.data.records || []).sort((a,b) =>
                         new Date(b.recordedAt) - new Date(a.recordedAt)
                     );
                     setHistory(sortedRecords);
+                    calculateStats(sortedRecords);
                 }
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to load weight history.');
+            console.log('Error fetching weight history:',error);
+            Alert.alert('Error','Failed to load weight history. Please try again later.');
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
+    };
+
+    const calculateStats = (data) => {
+        if (!data || data.length === 0) {
+            setStats({
+                current: 0,
+                lowest: 0,
+                highest: 0,
+                average: 0,
+                change: 0,
+            });
+            return;
+        }
+
+        const weights = data.map(item => item.weight);
+        const current = data[0].weight;
+        const lowest = Math.min(...weights);
+        const highest = Math.max(...weights);
+        const average = weights.reduce((sum,weight) => sum + weight,0) / weights.length;
+        const change = data.length > 1 ? current - data[data.length - 1].weight : 0;
+
+        setStats({
+            current: parseFloat(current.toFixed(1)),
+            lowest: parseFloat(lowest.toFixed(1)),
+            highest: parseFloat(highest.toFixed(1)),
+            average: parseFloat(average.toFixed(1)),
+            change: parseFloat(change.toFixed(1)),
+        });
     };
 
     useEffect(() => {
         fetchWeightHistory();
-    }, [user, authToken]);
+    },[user,authToken]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchWeightHistory();
+        },[])
+    );
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchWeightHistory(false);
+    };
 
     const handleDelete = async (historyId) => {
         Alert.alert(
@@ -47,16 +111,16 @@ export default function WeightHistoryScreen({ navigation }) {
                 },
                 {
                     text: "Delete",
+                    style: "destructive",
                     onPress: async () => {
                         try {
                             const response = await weightHistoryService.deleteWeightHistory(historyId);
                             if (response.statusCode === 200) {
-                                // Gọi lại fetchWeightHistory để tải lại dữ liệu từ API
                                 await fetchWeightHistory();
-                                Alert.alert('Success', 'Weight entry deleted.');
+                                Alert.alert('Success','Weight entry deleted successfully.');
                             }
                         } catch (error) {
-                            Alert.alert('Error', 'Failed to delete weight entry.');
+                            Alert.alert('Error','Failed to delete weight entry.');
                         }
                     }
                 }
@@ -65,16 +129,20 @@ export default function WeightHistoryScreen({ navigation }) {
     };
 
     const handleEdit = (item) => {
-        if (!user || !user.id) {
-            Alert.alert('Lỗi', 'Không tìm thấy thông tin người dùng.');
+        if (!user || !user.userId) {
+            Alert.alert('Error','User information not found.');
             return;
         }
-        navigation.navigate('EditWeightScreen', {
+        navigation.navigate('EditWeightScreen',{
             historyId: item.historyId,
             weight: item.weight,
             recordedAt: item.recordedAt,
-            userId: user.id,
+            userId: user.userId,
         });
+    };
+
+    const handleAddWeight = () => {
+        navigation.navigate('AddWeightHistory');
     };
 
     const filterHistoryByTimeFrame = (data) => {
@@ -96,211 +164,484 @@ export default function WeightHistoryScreen({ navigation }) {
         }
     };
 
-    const renderItem = ({ item }) => (
-        <View style={styles.listItem}>
-            <View style={styles.itemContent}>
-                <Text style={styles.listItemText}>
-                    {new Date(item.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - **{item.weight} kg**
-                </Text>
-                <View style={styles.actions}>
-                    <TouchableOpacity onPress={() => handleEdit(item)} style={styles.actionButton}>
-                        <Ionicons name="create" size={20} color="#2563EB" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDelete(item.historyId)} style={styles.actionButton}>
-                        <Ionicons name="trash" size={20} color="#DC2626" />
-                    </TouchableOpacity>
+    const renderItem = ({ item,index }) => {
+        const date = new Date(item.recordedAt);
+        const formattedDate = date.toLocaleDateString('en-US',{
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+
+        // Calculate weight change from previous entry
+        const prevItem = history[index + 1];
+        const weightChange = prevItem ? (item.weight - prevItem.weight).toFixed(1) : null;
+        const isWeightUp = weightChange > 0;
+        const isWeightDown = weightChange < 0;
+
+        return (
+            <View style={styles.listItem}>
+                <View style={styles.itemContent}>
+                    <View style={styles.dateWeightContainer}>
+                        <Text style={styles.dateText}>{formattedDate}</Text>
+                        <Text style={styles.weightText}>{item.weight} kg</Text>
+                    </View>
+
+                    {weightChange !== null && (
+                        <View style={[
+                            styles.changeContainer,
+                            isWeightUp ? styles.weightUp : isWeightDown ? styles.weightDown : styles.weightSame
+                        ]}>
+                            <Ionicons
+                                name={isWeightUp ? "arrow-up" : isWeightDown ? "arrow-down" : "remove"}
+                                size={14}
+                                color={isWeightUp ? "#E53E3E" : isWeightDown ? "#38A169" : "#718096"}
+                            />
+                            <Text style={[
+                                styles.changeText,
+                                isWeightUp ? styles.changeTextUp : isWeightDown ? styles.changeTextDown : styles.changeTextSame
+                            ]}>
+                                {Math.abs(weightChange)} kg
+                            </Text>
+                        </View>
+                    )}
+
+                    <View style={styles.actions}>
+                        <TouchableOpacity onPress={() => handleEdit(item)} style={styles.actionButton}>
+                            <Ionicons name="create-outline" size={22} color="#4F46E5" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDelete(item.historyId)} style={styles.actionButton}>
+                            <Ionicons name="trash-outline" size={22} color="#E53E3E" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
-        </View>
-    );
+        );
+    };
 
     const filteredHistory = filterHistoryByTimeFrame(history);
+
+    // Prepare chart data - limit to 10 entries and reverse for chronological order
     const chartData = {
-        labels: filteredHistory.slice(0, 8).reverse().map(item => 
-            new Date(item.recordedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        labels: filteredHistory.slice(0,10).reverse().map(item =>
+            new Date(item.recordedAt).toLocaleDateString('en-US',{ month: 'short',day: 'numeric' })
         ),
         datasets: [{
-            data: filteredHistory.slice(0, 8).reverse().map(item => item.weight)
+            data: filteredHistory.length > 0
+                ? filteredHistory.slice(0,10).reverse().map(item => item.weight)
+                : [0], // Prevent chart errors with empty data
         }]
     };
 
-    if (loading) {
+    if (loading && !refreshing) {
         return (
-            <View style={styles.container}>
+            <SafeAreaView style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4F46E5" />
                 <Text style={styles.loadingText}>Loading weight history...</Text>
-            </View>
+            </SafeAreaView>
         );
     }
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#1E293B" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>All Weight History</Text>
-            </View>
+        <SafeAreaView style={styles.safeArea}>
+            <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color="#1F2937" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Weight History</Text>
+                    <TouchableOpacity onPress={handleAddWeight} style={styles.addButton}>
+                        <Ionicons name="add" size={24} color="#4F46E5" />
+                    </TouchableOpacity>
+                </View>
 
-            <View style={styles.filterContainer}>
-                <TouchableOpacity
-                    style={[styles.filterButton, timeFrame === 'all' && styles.filterButtonActive]}
-                    onPress={() => setTimeFrame('all')}
-                >
-                    <Text style={[styles.filterButtonText, timeFrame === 'all' && styles.filterButtonTextActive]}>All Time</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.filterButton, timeFrame === '7days' && styles.filterButtonActive]}
-                    onPress={() => setTimeFrame('7days')}
-                >
-                    <Text style={[styles.filterButtonText, timeFrame === '7days' && styles.filterButtonTextActive]}>Last 7 Days</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.filterButton, timeFrame === '30days' && styles.filterButtonActive]}
-                    onPress={() => setTimeFrame('30days')}
-                >
-                    <Text style={[styles.filterButtonText, timeFrame === '30days' && styles.filterButtonTextActive]}>Last 30 Days</Text>
-                </TouchableOpacity>
+                <FlatList
+                    data={filteredHistory}
+                    renderItem={renderItem}
+                    keyExtractor={(item) => item.historyId.toString()}
+                    contentContainerStyle={styles.flatListContent}
+                    ListHeaderComponent={
+                        <>
+                            <View style={styles.statsContainer}>
+                                <View style={styles.statCard}>
+                                    <Text style={styles.statLabel}>Current</Text>
+                                    <Text style={styles.statValue}>{stats.current} kg</Text>
+                                </View>
+                                <View style={styles.statCard}>
+                                    <Text style={styles.statLabel}>Average</Text>
+                                    <Text style={styles.statValue}>{stats.average} kg</Text>
+                                </View>
+                                <View style={styles.statCard}>
+                                    <Text style={styles.statLabel}>Change</Text>
+                                    <Text style={[
+                                        styles.statValue,
+                                        stats.change > 0 ? styles.statValueUp :
+                                            stats.change < 0 ? styles.statValueDown : null
+                                    ]}>
+                                        {stats.change > 0 ? '+' : ''}{stats.change} kg
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.chartContainer}>
+                                {filteredHistory.length > 0 ? (
+                                    <LineChart
+                                        data={chartData}
+                                        width={screenWidth - 32}
+                                        height={220}
+                                        yAxisLabel=""
+                                        yAxisSuffix=" kg"
+                                        chartConfig={{
+                                            backgroundColor: '#FFFFFF',
+                                            backgroundGradientFrom: '#FFFFFF',
+                                            backgroundGradientTo: '#FFFFFF',
+                                            decimalPlaces: 1,
+                                            color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
+                                            labelColor: (opacity = 1) => `rgba(31, 41, 55, ${opacity})`,
+                                            style: {
+                                                borderRadius: 16,
+                                            },
+                                            propsForDots: {
+                                                r: '5',
+                                                strokeWidth: '2',
+                                                stroke: '#4F46E5',
+                                            },
+                                            propsForLabels: {
+                                                fontSize: 10,
+                                            }
+                                        }}
+                                        bezier
+                                        style={styles.chart}
+                                    />
+                                ) : (
+                                    <View style={styles.noChartDataContainer}>
+                                        <Ionicons name="analytics-outline" size={48} color="#CBD5E1" />
+                                        <Text style={styles.noChartDataText}>No data available for this period</Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            <View style={styles.filterContainer}>
+                                <TouchableOpacity
+                                    style={[styles.filterButton,timeFrame === 'all' && styles.filterButtonActive]}
+                                    onPress={() => setTimeFrame('all')}
+                                >
+                                    <Text style={[styles.filterButtonText,timeFrame === 'all' && styles.filterButtonTextActive]}>
+                                        All Time
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.filterButton,timeFrame === '30days' && styles.filterButtonActive]}
+                                    onPress={() => setTimeFrame('30days')}
+                                >
+                                    <Text style={[styles.filterButtonText,timeFrame === '30days' && styles.filterButtonTextActive]}>
+                                        30 Days
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.filterButton,timeFrame === '7days' && styles.filterButtonActive]}
+                                    onPress={() => setTimeFrame('7days')}
+                                >
+                                    <Text style={[styles.filterButtonText,timeFrame === '7days' && styles.filterButtonTextActive]}>
+                                        7 Days
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {filteredHistory.length > 0 ? (
+                                <Text style={styles.historyTitle}>Weight Entries</Text>
+                            ) : null}
+                        </>
+                    }
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="scale-outline" size={64} color="#CBD5E1" />
+                            <Text style={styles.emptyTitle}>No Weight Data</Text>
+                            <Text style={styles.emptyText}>
+                                Start tracking your weight progress by adding your first weight entry.
+                            </Text>
+                            <TouchableOpacity onPress={handleAddWeight} style={styles.emptyButton}>
+                                <Text style={styles.emptyButtonText}>Add Weight</Text>
+                            </TouchableOpacity>
+                        </View>
+                    }
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={['#4F46E5']}
+                            tintColor="#4F46E5"
+                        />
+                    }
+                />
             </View>
-            {filteredHistory.length > 0 ? (
-                <>
-                    <LineChart
-                        data={chartData}
-                        width={screenWidth - 32}
-                        height={220}
-                        yAxisLabel=""
-                        yAxisSuffix=" kg"
-                        chartConfig={{
-                            backgroundGradientFrom: '#F3E5F5',
-                            backgroundGradientTo: '#E1BEE7',
-                            decimalPlaces: 1,
-                            color: (opacity = 1) => `rgba(103, 58, 183, ${opacity})`,
-                            labelColor: (opacity = 1) => `rgba(66, 66, 66, ${opacity})`,
-                            style: {
-                                borderRadius: 16,
-                                borderWidth: 1,
-                                borderColor: '#CE93D8',
-                                shadowColor: '#AB47BC',
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 6,
-                                elevation: 5,
-                            },
-                            propsForDots: {
-                                r: '6',
-                                strokeWidth: '2',
-                                stroke: '#8E24AA',
-                            },
-                            propsForLabels: {
-                                fontSize: 10,
-                            }
-                        }}
-                        bezier
-                        style={{
-                            marginVertical: 8,
-                            marginHorizontal: 16,
-                            borderRadius: 16,
-                        }}
-                    />
-                    <FlatList
-                        data={filteredHistory}
-                        renderItem={renderItem}
-                        keyExtractor={(item) => item.historyId.toString()}
-                        contentContainerStyle={styles.flatListContent}
-                    />
-                </>
-            ) : (
-                <Text style={styles.noDataText}>No weight history available for this period.</Text>
-            )}
-        </View>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#F9FAFB',
+    },
     container: {
         flex: 1,
-        backgroundColor: '#F6F8FB',
+        backgroundColor: '#F9FAFB',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: '#4F46E5',
+        fontWeight: '500',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
-        backgroundColor: '#fff',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB',
-        paddingTop: 40,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0,height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+            },
+            android: {
+                elevation: 2,
+            },
+        }),
     },
     backButton: {
         padding: 8,
     },
     headerTitle: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
-        color: '#1E293B',
-        marginLeft: 16,
+        color: '#1F2937',
+    },
+    addButton: {
+        padding: 8,
+    },
+    statsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+    },
+    statCard: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        padding: 12,
+        marginHorizontal: 4,
+        alignItems: 'center',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0,height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+            },
+            android: {
+                elevation: 2,
+            },
+        }),
+    },
+    statLabel: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginBottom: 4,
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1F2937',
+    },
+    statValueUp: {
+        color: '#E53E3E',
+    },
+    statValueDown: {
+        color: '#38A169',
+    },
+    chartContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        marginHorizontal: 16,
+        marginVertical: 8,
+        padding: 16,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0,height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 3,
+            },
+            android: {
+                elevation: 3,
+            },
+        }),
+    },
+    chart: {
+        borderRadius: 16,
+    },
+    noChartDataContainer: {
+        height: 220,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    noChartDataText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#94A3B8',
+        textAlign: 'center',
     },
     filterContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
-        paddingVertical: 12,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
+        justifyContent: 'center',
+        paddingVertical: 16,
         paddingHorizontal: 16,
     },
     filterButton: {
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 20,
-        backgroundColor: '#E0E7FF',
+        backgroundColor: '#F3F4F6',
+        marginHorizontal: 4,
     },
     filterButtonActive: {
-        backgroundColor: '#4C51BF',
+        backgroundColor: '#4F46E5',
     },
     filterButtonText: {
-        color: '#4338CA',
-        fontWeight: '600',
+        fontSize: 14,
+        color: '#4B5563',
+        fontWeight: '500',
     },
     filterButtonTextActive: {
         color: '#FFFFFF',
     },
+    historyTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#1F2937',
+        marginHorizontal: 16,
+        marginTop: 8,
+        marginBottom: 8,
+    },
+    flatListContent: {
+        paddingBottom: 24,
+    },
     listItem: {
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-        backgroundColor: '#fff',
+        backgroundColor: '#FFFFFF',
+        marginHorizontal: 16,
+        marginVertical: 4,
+        borderRadius: 12,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0,height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+            },
+            android: {
+                elevation: 2,
+            },
+        }),
     },
     itemContent: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        padding: 16,
     },
-    listItemText: {
-        fontSize: 16,
-        color: '#1E293B',
-        fontWeight: '500',
+    dateWeightContainer: {
+        flex: 1,
+    },
+    dateText: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginBottom: 4,
+    },
+    weightText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#1F2937',
+    },
+    changeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginRight: 12,
+    },
+    weightUp: {
+        backgroundColor: '#FEE2E2',
+    },
+    weightDown: {
+        backgroundColor: '#DCFCE7',
+    },
+    weightSame: {
+        backgroundColor: '#F3F4F6',
+    },
+    changeText: {
+        fontSize: 12,
+        fontWeight: '600',
+        marginLeft: 2,
+    },
+    changeTextUp: {
+        color: '#E53E3E',
+    },
+    changeTextDown: {
+        color: '#38A169',
+    },
+    changeTextSame: {
+        color: '#718096',
     },
     actions: {
         flexDirection: 'row',
-        gap: 12,
     },
     actionButton: {
-        padding: 4,
+        padding: 8,
+        marginLeft: 4,
     },
-    noDataText: {
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        marginTop: 40,
+    },
+    emptyTitle: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: '#1F2937',
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    emptyText: {
         fontSize: 16,
-        color: '#64748B',
+        color: '#6B7280',
         textAlign: 'center',
-        marginTop: 20,
-        paddingHorizontal: 20,
+        marginBottom: 24,
     },
-    loadingText: {
+    emptyButton: {
+        backgroundColor: '#4F46E5',
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+    },
+    emptyButtonText: {
+        color: '#FFFFFF',
         fontSize: 16,
-        color: '#2563EB',
-        textAlign: 'center',
-        marginTop: 20,
-    },
-    flatListContent: {
-        paddingBottom: 20,
+        fontWeight: '600',
     },
 });

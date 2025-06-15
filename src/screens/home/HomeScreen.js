@@ -19,6 +19,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import apiUserService from "services/apiUserService";
 import { AuthContext } from "context/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DynamicStatusBar from "screens/statusBar/DynamicStatusBar";
+import { theme } from "theme/color";
 
 const { width } = Dimensions.get("window");
 const SPACING = 16;
@@ -343,19 +345,35 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <DynamicStatusBar backgroundColor={theme.primaryColor} />
 
       {/* Header with Avatar */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Image source={{ uri: dashboardData?.user?.avatar }} style={styles.avatar} />
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerGreeting}>{getGreeting()}</Text>
-            <Text style={styles.headerName}>{dashboardData?.user?.fullName}</Text>
-            <Text style={styles.headerSubInfo}>
-              {dashboardData?.user?.gender} • Age {dashboardData?.user?.birthDate ? calculateAge(dashboardData.user.birthDate) : 'N/A'}
-            </Text>
-          </View>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerLeft}
+            onPress={() => {
+              console.log("Navigating to Profile with user:",dashboardData?.user?.fullName);
+              navigation.navigate("Profile");
+            }}
+            activeOpacity={0.7}
+            accessibilityLabel="Go to Profile"
+            accessibilityRole="button"
+          >
+            <Image
+              source={{ uri: dashboardData?.user?.avatar || "https://example.com/default-avatar.jpg" }} // Fallback URL
+              style={styles.avatar}
+              onError={() => console.log("Avatar image load error for URI:",dashboardData?.user?.avatar)}
+            />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerGreeting}>{getGreeting()}</Text>
+              <Text style={styles.headerName}>{dashboardData?.user?.fullName || "Unknown User"}</Text>
+              <Text style={styles.headerSubInfo}>
+                {dashboardData?.user?.gender || "N/A"} • Age{" "}
+                {dashboardData?.user?.birthDate ? calculateAge(dashboardData.user.birthDate) : "N/A"}
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.iconButton} onPress={() => handleNavigation("Notifications")}>
@@ -538,7 +556,7 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: theme.primaryColor,
   },
   scrollContent: {
     paddingBottom: 32,

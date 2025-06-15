@@ -1,6 +1,4 @@
-"use client"
-
-import { useState,useEffect,useCallback,useContext } from "react"
+import { useState,useEffect,useCallback,useContext,useRef } from "react"
 import {
   View,
   Text,
@@ -17,13 +15,17 @@ import {
   Linking,
   TextInput,
   Dimensions,
+  PanResponder,
+  Animated,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { AuthContext,useAuth } from "context/AuthContext"
+import { AuthContext } from "context/AuthContext"
 import { profileService } from "services/apiProfileService"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as ImagePicker from "expo-image-picker"
-import apiUserService from "services/apiUserService";
+import apiUserService from "services/apiUserService"
+import { theme } from "theme/color"
+import DynamicStatusBar from "screens/statusBar/DynamicStatusBar"
 
 const { width: screenWidth,height: screenHeight } = Dimensions.get("window")
 
@@ -31,15 +33,172 @@ const menuItems = [
   { id: "1",title: "Profile",icon: "person-outline",description: "View and edit your profile" },
   { id: "2",title: "Weight History",icon: "trending-up-outline",description: "Track your weight progress" },
   { id: "3",title: "Body Measurements",icon: "body-outline",description: "View your body measurements" },
-  { id: "4",title: "Recipe",icon: "book-outline",description: "Discover healthy recipes" },
+  { id: "4",title: "My Subscriptions",icon: "card-outline",description: "View your active and past subscriptions" },
   { id: "5",title: "Workout",icon: "barbell-outline",description: "View workout plans" },
   { id: "6",title: "Nutrition",icon: "nutrition-outline",description: "Track your nutrition" },
   { id: "7",title: "Health Goals",icon: "flag-outline",description: "Set and track your health goals" },
   { id: "8",title: "Logout",icon: "log-out-outline",description: "Sign out of your account" },
 ]
 
+const ImageZoomViewer = ({ visible,imageUri,onClose,onDelete,showDeleteButton = false }) => {
+  const scale = useRef(new Animated.Value(1)).current
+  const translateX = useRef(new Animated.Value(0)).current
+  const translateY = useRef(new Animated.Value(0)).current
+  const [isZoomed,setIsZoomed] = useState(false)
+  const [lastTap,setLastTap] = useState(null)
+
+  const resetTransform = () => {
+    Animated.parallel([
+      Animated.spring(scale,{ toValue: 1,useNativeDriver: true }),
+      Animated.spring(translateX,{ toValue: 0,useNativeDriver: true }),
+      Animated.spring(translateY,{ toValue: 0,useNativeDriver: true }),
+    ]).start()
+    setIsZoomed(false)
+  }
+
+  const handleDoubleTap = () => {
+    const now = Date.now()
+    const DOUBLE_PRESS_DELAY = 300
+
+    if (lastTap && now - lastTap < DOUBLE_PRESS_DELAY) {
+      if (isZoomed) {
+        resetTransform()
+      } else {
+        Animated.spring(scale,{ toValue: 2,useNativeDriver: true }).start()
+        setIsZoomed(true)
+      }
+    } else {
+      setLastTap(now)
+    }
+  }
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt,gestureState) => {
+        return isZoomed || Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2
+      },
+      onMoveShouldSetPanResponderCapture: () => false,
+      onPanResponderGrant: () => {
+        translateX.setOffset(translateX._value)
+        translateY.setOffset(translateY._value)
+        scale.setOffset(scale._value)
+      },
+      onPanResponderMove: (evt,gestureState) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          const touch1 = evt.nativeEvent.touches[0]
+          const touch2 = evt.nativeEvent.touches[1]
+          const distance = Math.sqrt(
+            Math.pow(touch2.pageX - touch1.pageX,2) + Math.pow(touch2.pageY - touch1.pageY,2),
+          )
+          const newScale = Math.min(Math.max(distance / 200,0.5),5)
+          scale.setValue(newScale)
+          setIsZoomed(newScale > 1.1)
+        } else if (isZoomed && evt.nativeEvent.touches.length === 1) {
+          const maxTranslate = 100
+          translateX.setValue(Math.min(Math.max(gestureState.dx,-maxTranslate),maxTranslate))
+          translateY.setValue(Math.min(Math.max(gestureState.dy,-maxTranslate),maxTranslate))
+        }
+      },
+      onPanResponderRelease: () => {
+        translateX.flattenOffset()
+        translateY.flattenOffset()
+        scale.flattenOffset()
+
+        const currentScale = scale._value
+        if (currentScale < 1.1 && currentScale > 0.9) {
+          resetTransform()
+        }
+      },
+    }),
+  ).current
+
+  const handleClose = () => {
+    resetTransform()
+    onClose()
+  }
+
+  const handleDelete = () => {
+    Alert.alert("Delete Image","Are you sure you want to delete this profile picture?",[
+      { text: "Cancel",style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          onDelete?.()
+          handleClose()
+        },
+      },
+    ])
+  }
+
+  if (!visible) return null
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={handleClose}
+      statusBarTranslucent={true}
+    >
+      <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.9)" />
+      <View style={zoomStyles.container}>
+        <View style={zoomStyles.overlay}>
+          {/* Header */}
+          <View style={zoomStyles.header}>
+            <TouchableOpacity style={zoomStyles.headerButton} onPress={handleClose}>
+              <Ionicons name="close" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={zoomStyles.headerTitle}>Profile Picture</Text>
+            {showDeleteButton && (
+              <TouchableOpacity style={zoomStyles.headerButton} onPress={handleDelete}>
+                <Ionicons name="trash-outline" size={24} color="#FF4444" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Image Container */}
+          <View style={zoomStyles.imageContainer}>
+            <Animated.View
+              style={[
+                zoomStyles.imageWrapper,
+                {
+                  transform: [{ scale },{ translateX },{ translateY }],
+                },
+              ]}
+              {...panResponder.panHandlers}
+            >
+              <TouchableOpacity activeOpacity={1} onPress={handleDoubleTap} style={zoomStyles.imageTouchable}>
+                <Image
+                  source={{ uri: imageUri }}
+                  style={zoomStyles.image}
+                  resizeMode="contain"
+                  onError={() => {
+                    Alert.alert("Error","Failed to load image")
+                    handleClose()
+                  }}
+                />
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+
+          {/* Footer with zoom info */}
+          <View style={zoomStyles.footer}>
+            <View style={zoomStyles.zoomInfo}>
+              <Ionicons name="search-outline" size={16} color="#FFFFFF" />
+              <Text style={zoomStyles.zoomText}>
+                {isZoomed ? "Pinch to zoom • Double tap to reset" : "Pinch to zoom • Double tap to zoom in"}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
 export default function SettingsScreen({ navigation }) {
-  const { user,logout,loading: authLoading } = useContext(AuthContext);
+  const { user,logout,loading: authLoading } = useContext(AuthContext)
   const [profile,setProfile] = useState(null)
   const [loading,setLoading] = useState(true)
   const [isLoggingOut,setIsLoggingOut] = useState(false)
@@ -62,10 +221,12 @@ export default function SettingsScreen({ navigation }) {
     imageUrl: "",
   })
 
+  const [showImageViewer,setShowImageViewer] = useState(false)
+
   const updateAvatar = async (userId,avatarUrl) => {
     try {
       const response = await apiUserService.updateAvatar(userId,avatarUrl)
-      return response;
+      return response
     } catch (error) {
       throw error
     }
@@ -213,7 +374,7 @@ export default function SettingsScreen({ navigation }) {
       return
     }
 
-    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/
+    const urlPattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/
     if (!urlPattern.test(imageUrl.trim())) {
       setErrors((prev) => ({ ...prev,imageUrl: "Please enter a valid URL" }))
       return
@@ -239,6 +400,21 @@ export default function SettingsScreen({ navigation }) {
       Alert.alert("Error","Failed to update profile picture.")
     } finally {
       setImageUploading(false)
+    }
+  }
+
+  const handleDeleteAvatar = async () => {
+    try {
+      setAvatar(null)
+      await AsyncStorage.removeItem("userAvatar")
+
+      if (user && user.userId) {
+        await updateAvatar(user.userId,"")
+        Alert.alert("Success","Profile picture removed successfully")
+      }
+    } catch (error) {
+      console.log("Delete avatar error:",error)
+      Alert.alert("Error","Failed to remove profile picture.")
     }
   }
 
@@ -312,8 +488,8 @@ export default function SettingsScreen({ navigation }) {
   const confirmLogout = async () => {
     setIsLoggingOut(true)
     try {
-      await logout();
-      navigation.replace("Login");
+      await logout()
+      navigation.replace("Login")
     } catch (error) {
       Alert.alert("Error","Logout failed. Please try again.")
     } finally {
@@ -337,8 +513,8 @@ export default function SettingsScreen({ navigation }) {
       case "Body Measurements":
         navigation.navigate("BodyMeasurements")
         break
-      case "Recipe":
-        navigation.navigate("Recipes")
+      case "My Subscriptions":
+        navigation.navigate("MySubscriptionScreen")
         break
       case "Workout":
         navigation.navigate("WorkoutScreen")
@@ -379,7 +555,7 @@ export default function SettingsScreen({ navigation }) {
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <DynamicStatusBar backgroundColor={theme.primaryColor} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2563EB" style={{ marginBottom: 16 }} />
           <Text style={styles.loadingText}>Loading your profile...</Text>
@@ -442,11 +618,13 @@ export default function SettingsScreen({ navigation }) {
                   <ActivityIndicator size="large" color="#2563EB" />
                 </View>
               ) : avatar ? (
-                <Image
-                  source={{ uri: avatar }}
-                  style={styles.profileAvatar}
-                  onError={() => console.log("Error loading avatar")}
-                />
+                <TouchableOpacity onPress={() => setShowImageViewer(true)}>
+                  <Image
+                    source={{ uri: avatar }}
+                    style={styles.profileAvatar}
+                    onError={() => console.log("Error loading avatar")}
+                  />
+                </TouchableOpacity>
               ) : (
                 <View style={styles.avatarFallback}>
                   <Text style={styles.avatarFallbackText}>
@@ -543,6 +721,17 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>HMS App v1.0.0</Text>
         </View>
+
+        {/* Image Zoom Viewer Modal - INTEGRATED HERE */}
+        {avatar && (
+          <ImageZoomViewer
+            visible={showImageViewer}
+            imageUri={avatar}
+            onClose={() => setShowImageViewer(false)}
+            onDelete={handleDeleteAvatar}
+            showDeleteButton={true}
+          />
+        )}
 
         {/* Logout Modal */}
         <Modal visible={showLogoutModal} transparent={true} animationType="fade" onRequestClose={cancelLogout}>
@@ -644,17 +833,10 @@ export default function SettingsScreen({ navigation }) {
               </View>
 
               <View style={styles.urlModalButtons}>
-                <TouchableOpacity
-                  style={styles.urlCancelButton}
-                  onPress={() => setShowUrlInput(false)}
-                >
+                <TouchableOpacity style={styles.urlCancelButton} onPress={() => setShowUrlInput(false)}>
                   <Text style={styles.urlCancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.urlConfirmButton}
-                  onPress={confirmUrlImage}
-                  disabled={imageUploading}
-                >
+                <TouchableOpacity style={styles.urlConfirmButton} onPress={confirmUrlImage} disabled={imageUploading}>
                   {imageUploading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
@@ -672,10 +854,84 @@ export default function SettingsScreen({ navigation }) {
   )
 }
 
+// Zoom Viewer Styles
+const zoomStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "space-between",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  imageContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageWrapper: {
+    width: screenWidth,
+    height: screenHeight * 0.7,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageTouchable: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  image: {
+    width: screenWidth - 40,
+    height: screenWidth - 40,
+    borderRadius: 20,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  zoomInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  zoomText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    marginLeft: 8,
+    opacity: 0.8,
+  },
+})
+
+// Keep all existing styles - they remain the same
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.primaryColor,
   },
   container: {
     flex: 1,

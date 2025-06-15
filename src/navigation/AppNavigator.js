@@ -28,6 +28,18 @@ import ExerciseDetailsScreen from 'screens/workout/ExerciseDetailsScreen';
 import NotificationScreen from 'screens/notification/NotificationScreen';
 import StepCounterScreen from 'screens/notification/StepCounterScreen';
 import FoodScannerScreen from 'screens/food/FoodScannerScreen';
+import ServicePackageScreen from 'screens/servicePackage/ServicePackageScreen';
+import PackageDetailScreen from 'screens/servicePackage/PackageDetailScreen';
+import PaymentScreen from 'screens/servicePackage/PaymentScreen';
+import QRPaymentScreen from 'screens/payment/QRPaymentScreen';
+import PaymentSuccessScreen from 'screens/servicePackage/PaymentSuccessScreen';
+import PaymentCancelledScreen from 'screens/servicePackage/PaymentCancelledScreen';
+import MySubscriptionScreen from 'screens/subscription/MySubscriptionScreen';
+import SubscriptionDetailScreen from 'screens/subscription/SubscriptionDetailScreen';
+import ActiveGroupsScreen from 'screens/community/ActiveGroupsScreen';
+import GroupDetailsScreen from 'screens/community/GroupDetailsScreen';
+import CreatePostScreen from 'screens/community/CreatePostScreen';
+import EditPostScreen from 'screens/community/EditPostScreen';
 
 const Stack = createStackNavigator();
 
@@ -54,8 +66,6 @@ function RootNavigator() {
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Otp" component={OtpScreen} />
       <Stack.Screen name="ForgetPassword" component={ForgetPassword} />
-      <Stack.Screen name="Community" component={CommunityScreen} />
-      <Stack.Screen name="Group" component={GroupScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="AddBodyMeasurement" component={AddBodyMeasurementScreen} />
       <Stack.Screen name="AddWeightHistory" component={AddWeightHistoryScreen} />
@@ -73,6 +83,18 @@ function RootNavigator() {
       <Stack.Screen name="Notifications" component={NotificationScreen} />
       <Stack.Screen name="StepCounter" component={StepCounterScreen} />
       <Stack.Screen name="FoodScannerScreen" component={FoodScannerScreen} />
+      <Stack.Screen name="ServicePackage" component={ServicePackageScreen} />
+      <Stack.Screen name="PackageDetail" component={PackageDetailScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
+      <Stack.Screen name="QRPaymentScreen" component={QRPaymentScreen} />
+      <Stack.Screen name="PaymentSuccessScreen" component={PaymentSuccessScreen} />
+      <Stack.Screen name="PaymentCancelled" component={PaymentCancelledScreen} />
+      <Stack.Screen name="MySubscriptionScreen" component={MySubscriptionScreen} />
+      <Stack.Screen name="SubscriptionDetail" component={SubscriptionDetailScreen} />
+      <Stack.Screen name="ActiveGroups" component={ActiveGroupsScreen} />
+      <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
+      <Stack.Screen name="CreatePostScreen" component={CreatePostScreen} />
+      <Stack.Screen name="EditPostScreen" component={EditPostScreen} />
     </Stack.Navigator>
   );
 }

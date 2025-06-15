@@ -1,4 +1,4 @@
-import { useState,useCallback,useMemo } from "react"
+import { useState,useCallback,useMemo,useEffect,useRef } from "react"
 import { useFocusEffect } from "@react-navigation/native"
 import {
   View,
@@ -10,9 +10,11 @@ import {
   Alert,
   Dimensions,
   RefreshControl,
-  Platform,
   SafeAreaView,
+  Modal,
   StatusBar,
+  PanResponder,
+  Animated,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { LinearGradient } from "expo-linear-gradient"
@@ -21,8 +23,151 @@ import { profileService } from "services/apiProfileService"
 import { bodyMeasurementService } from "services/apiBodyMeasurementService"
 import { weightHistoryService } from "services/apiWeightHistoryService"
 import { apiUserService } from "services/apiUserService"
+import { theme } from "theme/color"
+import DynamicStatusBar from "screens/statusBar/DynamicStatusBar"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+import FloatingMenuButton from "components/FloatingMenuButton"
 
-const { width } = Dimensions.get("window")
+const { width,height: screenHeight } = Dimensions.get("window")
+
+const ImageZoomViewer = ({ visible,imageUri,onClose,showDeleteButton = false }) => {
+  const scale = useRef(new Animated.Value(1)).current
+  const translateX = useRef(new Animated.Value(0)).current
+  const translateY = useRef(new Animated.Value(0)).current
+  const [isZoomed,setIsZoomed] = useState(false)
+  const [lastTap,setLastTap] = useState(null)
+
+  const resetTransform = () => {
+    Animated.parallel([
+      Animated.spring(scale,{ toValue: 1,useNativeDriver: true }),
+      Animated.spring(translateX,{ toValue: 0,useNativeDriver: true }),
+      Animated.spring(translateY,{ toValue: 0,useNativeDriver: true }),
+    ]).start()
+    setIsZoomed(false)
+  }
+
+  const handleDoubleTap = () => {
+    const now = Date.now()
+    const DOUBLE_PRESS_DELAY = 300
+
+    if (lastTap && now - lastTap < DOUBLE_PRESS_DELAY) {
+      if (isZoomed) {
+        resetTransform()
+      } else {
+        Animated.spring(scale,{ toValue: 2,useNativeDriver: true }).start()
+        setIsZoomed(true)
+      }
+    } else {
+      setLastTap(now)
+    }
+  }
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt,gestureState) => {
+        return isZoomed || Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2
+      },
+      onMoveShouldSetPanResponderCapture: () => false,
+      onPanResponderGrant: () => {
+        translateX.setOffset(translateX._value)
+        translateY.setOffset(translateY._value)
+        scale.setOffset(scale._value)
+      },
+      onPanResponderMove: (evt,gestureState) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          const touch1 = evt.nativeEvent.touches[0]
+          const touch2 = evt.nativeEvent.touches[1]
+          const distance = Math.sqrt(
+            Math.pow(touch2.pageX - touch1.pageX,2) + Math.pow(touch2.pageY - touch1.pageY,2),
+          )
+
+          const newScale = Math.min(Math.max(distance / 200,0.5),5)
+          scale.setValue(newScale)
+          setIsZoomed(newScale > 1.1)
+        } else if (isZoomed && evt.nativeEvent.touches.length === 1) {
+          const maxTranslate = 100
+          translateX.setValue(Math.min(Math.max(gestureState.dx,-maxTranslate),maxTranslate))
+          translateY.setValue(Math.min(Math.max(gestureState.dy,-maxTranslate),maxTranslate))
+        }
+      },
+      onPanResponderRelease: () => {
+        translateX.flattenOffset()
+        translateY.flattenOffset()
+        scale.flattenOffset()
+
+        const currentScale = scale._value
+        if (currentScale < 1.1 && currentScale > 0.9) {
+          resetTransform()
+        }
+      },
+    }),
+  ).current
+
+  const handleClose = () => {
+    resetTransform()
+    onClose()
+  }
+
+  if (!visible) return null
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={handleClose}
+      statusBarTranslucent={true}
+    >
+      <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.9)" />
+      <View style={zoomStyles.container}>
+        <View style={zoomStyles.overlay}>
+          {/* Header */}
+          <View style={zoomStyles.header}>
+            <TouchableOpacity style={zoomStyles.headerButton} onPress={handleClose}>
+              <Ionicons name="close" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={zoomStyles.headerTitle}>Profile Picture</Text>
+          </View>
+
+          {/* Image Container */}
+          <View style={zoomStyles.imageContainer}>
+            <Animated.View
+              style={[
+                zoomStyles.imageWrapper,
+                {
+                  transform: [{ scale },{ translateX },{ translateY }],
+                },
+              ]}
+              {...panResponder.panHandlers}
+            >
+              <TouchableOpacity activeOpacity={1} onPress={handleDoubleTap} style={zoomStyles.imageTouchable}>
+                <Image
+                  source={{ uri: imageUri }}
+                  style={zoomStyles.image}
+                  resizeMode="contain"
+                  onError={() => {
+                    Alert.alert("Error","Failed to load image")
+                    handleClose()
+                  }}
+                />
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+
+          {/* Footer with zoom info */}
+          <View style={zoomStyles.footer}>
+            <View style={zoomStyles.zoomInfo}>
+              <Ionicons name="search-outline" size={16} color="#FFFFFF" />
+              <Text style={zoomStyles.zoomText}>
+                {isZoomed ? "Pinch to zoom • Double tap to reset" : "Pinch to zoom • Double tap to zoom in"}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  )
+}
 
 const useProfileData = (user,authToken,authLoading,navigation) => {
   const [data,setData] = useState({
@@ -31,142 +176,205 @@ const useProfileData = (user,authToken,authLoading,navigation) => {
     bodyMeasurements: [],
     weightHistory: [],
   })
-  const [loading,setLoading] = useState(true)
+  const [loading,setLoading] = useState({
+    userData: true,
+    profile: true,
+    bodyMeasurements: true,
+    weightHistory: true,
+  })
   const [refreshing,setRefreshing] = useState(false)
 
-  const fetchData = useCallback(
+  const fetchUserData = useCallback(
     async (abortController) => {
       try {
-        if (!user?.userId || !authToken) {
-          if (!authLoading) {
-            Alert.alert("Error","Please log in.")
-            navigation.replace("Login")
-          }
-          return
+        if (!user?.userId || !authToken) return
+        setLoading((prev) => ({ ...prev,userData: true }))
+        const userRes = await apiUserService.getUserById(user.userId,{ signal: abortController.signal })
+        if (userRes.statusCode === 200) {
+          setData((prev) => ({ ...prev,userData: userRes.data }))
         }
-
-        setLoading(true)
-
-        const [userRes,profileRes,measurementsRes,weightRes] = await Promise.all([
-          apiUserService.getUserById(user.userId,{ signal: abortController.signal }),
-          profileService.getLatestProfile(user.userId,{ signal: abortController.signal }),
-          bodyMeasurementService.getMyMeasurements({ pageNumber: 1,pageSize: 5 },{ signal: abortController.signal }),
-          weightHistoryService.getMyWeightHistory({ pageNumber: 1,pageSize: 5 },{ signal: abortController.signal }),
-        ])
-
-        setData({
-          userData: userRes.statusCode === 200 ? userRes.data : null,
-          profile: profileRes.statusCode === 200 ? profileRes.data.profile : null,
-          bodyMeasurements: measurementsRes.statusCode === 200 ? measurementsRes.data.records || [] : [],
-          weightHistory: weightRes.statusCode === 200 ? weightRes.data.records || [] : [],
-        })
       } catch (error) {
         if (error.name !== "AbortError") {
-          Alert.alert("Error",error.message || "Failed to load data.")
+          console.error("User Data Error:",error)
         }
       } finally {
-        setLoading(false)
-        setRefreshing(false)
+        setLoading((prev) => ({ ...prev,userData: false }))
       }
     },
-    [user,authToken,navigation],
+    [user,authToken],
+  )
+
+  const fetchProfile = useCallback(
+    async (abortController) => {
+      try {
+        if (!user?.userId || !authToken) return
+        setLoading((prev) => ({ ...prev,profile: true }))
+        const profileRes = await profileService.getLatestProfile(user.userId,{ signal: abortController.signal })
+        if (profileRes.statusCode === 200) {
+          setData((prev) => ({ ...prev,profile: profileRes.data.profile }))
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Profile Error:",error)
+        }
+      } finally {
+        setLoading((prev) => ({ ...prev,profile: false }))
+      }
+    },
+    [user,authToken],
+  )
+
+  const fetchBodyMeasurements = useCallback(
+    async (abortController) => {
+      try {
+        if (!user?.userId || !authToken) return
+        setLoading((prev) => ({ ...prev,bodyMeasurements: true }))
+        const measurementsRes = await bodyMeasurementService.getMyMeasurements(
+          { pageNumber: 1,pageSize: 5 },
+          { signal: abortController.signal },
+        )
+        if (measurementsRes.statusCode === 200) {
+          setData((prev) => ({ ...prev,bodyMeasurements: measurementsRes.data.records || [] }))
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Body Measurements Error:",error)
+        }
+      } finally {
+        setLoading((prev) => ({ ...prev,bodyMeasurements: false }))
+      }
+    },
+    [user,authToken],
+  )
+
+  const fetchWeightHistory = useCallback(
+    async (abortController) => {
+      try {
+        if (!user?.userId || !authToken) return
+        setLoading((prev) => ({ ...prev,weightHistory: true }))
+        const weightRes = await weightHistoryService.getMyWeightHistory(
+          { pageNumber: 1,pageSize: 5 },
+          { signal: abortController.signal },
+        )
+        if (weightRes.statusCode === 200) {
+          setData((prev) => ({ ...prev,weightHistory: weightRes.data.records || [] }))
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Weight History Error:",error)
+        }
+      } finally {
+        setLoading((prev) => ({ ...prev,weightHistory: false }))
+      }
+    },
+    [user,authToken],
+  )
+
+  const fetchAllData = useCallback(
+    async (abortController) => {
+      if (!authLoading && user?.userId && authToken) {
+        await Promise.all([
+          fetchUserData(abortController),
+          fetchProfile(abortController),
+          fetchBodyMeasurements(abortController),
+          fetchWeightHistory(abortController),
+        ])
+      } else if (!authLoading) {
+        Alert.alert("Error","Please log in.")
+        navigation.replace("Login")
+      }
+    },
+    [authLoading,user,authToken,navigation,fetchUserData,fetchProfile,fetchBodyMeasurements,fetchWeightHistory],
   )
 
   const onRefresh = useCallback(() => {
     setRefreshing(true)
     const abortController = new AbortController()
-    fetchData(abortController)
+    fetchAllData(abortController).finally(() => setRefreshing(false))
     return () => abortController.abort()
-  },[fetchData])
+  },[fetchAllData])
 
   useFocusEffect(
     useCallback(() => {
-      let isMounted = true
       const abortController = new AbortController()
-
-      if (!authLoading && isMounted) {
-        fetchData(abortController)
-      }
-
-      return () => {
-        isMounted = false
-        abortController.abort()
-      }
-    },[user,authToken,authLoading,navigation,fetchData]),
+      fetchAllData(abortController)
+      return () => abortController.abort()
+    },[fetchAllData]),
   )
 
   return { ...data,loading,refreshing,onRefresh }
 }
 
-const ProfileHeader = ({ userData,onEdit }) => {
+const ProfileHeader = ({ userData,onEdit,onLayout,headerHeight,onAvatarPress }) => {
   const userLevel = 3
   const progress = 75
+  const insets = useSafeAreaInsets()
 
   return (
-    <LinearGradient
-      colors={["#4F46E5","#6366F1","#818CF8"]}
-      start={{ x: 0,y: 0 }}
-      end={{ x: 1,y: 1 }}
-      style={styles.profileHeader}
-    >
-      <View style={styles.profileHeaderContent}>
-        <View style={styles.avatarContainer}>
-          {userData?.avatar ? (
-            <Image
-              source={{ uri: userData.avatar }}
-              style={styles.profileAvatar}
-              onError={() => console.log("Error loading avatar")}
-            />
-          ) : (
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarFallbackText}>
-                {userData?.fullName ? userData.fullName.charAt(0).toUpperCase() : "U"}
+    <View style={[styles.profileHeaderContainer,{ height: headerHeight,paddingTop: insets.top }]} onLayout={onLayout}>
+      <LinearGradient
+        colors={["#4F46E5","#6366F1","#818CF8"]}
+        start={{ x: 0,y: 0 }}
+        end={{ x: 1,y: 1 }}
+        style={styles.profileHeader}
+      >
+        <View style={styles.profileHeaderContent}>
+          <View style={styles.avatarContainer}>
+            {userData?.avatar ? (
+              <TouchableOpacity onPress={onAvatarPress}>
+                <Image
+                  source={{ uri: userData.avatar }}
+                  style={styles.profileAvatar}
+                  onError={() => console.log("Error loading avatar")}
+                />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarFallbackText}>
+                  {userData?.fullName ? userData.fullName.charAt(0).toUpperCase() : "U"}
+                </Text>
+              </View>
+            )}
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>{userLevel}</Text>
+            </View>
+          </View>
+          <View style={styles.profileInfoBox}>
+            <Text style={styles.profileName}>{userData?.fullName || "User"}</Text>
+            <Text style={styles.profileEmail}>{userData?.email || "N/A"}</Text>
+            <View style={styles.levelProgressContainer}>
+              <View style={styles.levelProgressBar}>
+                <View style={[styles.levelProgressFill,{ width: `${progress}%` }]} />
+              </View>
+              <Text style={styles.levelProgressText}>
+                {progress}% to Level {userLevel + 1}
               </Text>
             </View>
-          )}
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>{userLevel}</Text>
           </View>
+          <TouchableOpacity onPress={onEdit} style={styles.editProfileButton}>
+            <Ionicons name="pencil" size={18} color="#fff" />
+          </TouchableOpacity>
         </View>
-
-        <View style={styles.profileInfoBox}>
-          <Text style={styles.profileName}>{userData?.fullName || "User"}</Text>
-          <Text style={styles.profileEmail}>{userData?.email || "N/A"}</Text>
-
-          <View style={styles.levelProgressContainer}>
-            <View style={styles.levelProgressBar}>
-              <View style={[styles.levelProgressFill,{ width: `${progress}%` }]} />
-            </View>
-            <Text style={styles.levelProgressText}>
-              {progress}% to Level {userLevel + 1}
-            </Text>
-          </View>
+        <View style={styles.profileTabs}>
+          <TouchableOpacity style={[styles.profileTab,styles.activeTab]}>
+            <Ionicons name="person" size={20} color="#fff" />
+            <Text style={styles.activeTabText}>Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileTab}>
+            <Ionicons name="trophy-outline" size={20} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.tabText}>Achievements</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileTab}>
+            <Ionicons name="analytics-outline" size={20} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.tabText}>Progress</Text>
+          </TouchableOpacity>
         </View>
-
-        <TouchableOpacity onPress={onEdit} style={styles.editProfileButton}>
-          <Ionicons name="pencil" size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.profileTabs}>
-        <TouchableOpacity style={[styles.profileTab,styles.activeTab]}>
-          <Ionicons name="person" size={20} color="#fff" />
-          <Text style={styles.activeTabText}>Profile</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.profileTab}>
-          <Ionicons name="trophy-outline" size={20} color="rgba(255,255,255,0.7)" />
-          <Text style={styles.tabText}>Achievements</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.profileTab}>
-          <Ionicons name="analytics-outline" size={20} color="rgba(255,255,255,0.7)" />
-          <Text style={styles.tabText}>Progress</Text>
-        </TouchableOpacity>
-      </View>
-    </LinearGradient>
+      </LinearGradient>
+    </View>
   )
 }
 
-const HealthSummaryCard = ({ profile,latestWeight,latestMeasurement,navigation }) => {
+const HealthSummaryCard = ({ profile,latestWeight,latestMeasurement,navigation,loading }) => {
   const bmi = useMemo(() => {
     if (profile?.height && profile?.weight) {
       const heightInMeters = profile.height / 100
@@ -177,7 +385,6 @@ const HealthSummaryCard = ({ profile,latestWeight,latestMeasurement,navigation }
 
   const getBmiCategory = (bmiValue) => {
     if (!bmiValue) return { text: "N/A",color: "#64748B" }
-
     const value = Number.parseFloat(bmiValue)
     if (value < 18.5) return { text: "Underweight",color: "#FBBF24" }
     if (value < 25) return { text: "Normal",color: "#10B981" }
@@ -191,23 +398,25 @@ const HealthSummaryCard = ({ profile,latestWeight,latestMeasurement,navigation }
     navigation.navigate("EditProfile",{ profile })
   }
 
+  if (loading) {
+    return <SkeletonLoader />
+  }
+
   return (
     <View style={styles.healthSummaryCard}>
       <View style={styles.healthSummaryHeader}>
         <Text style={styles.healthSummaryTitle}>Health Summary</Text>
-        <TouchableOpacity onPress={() => handleEditProfileMetric()} style={styles.editMetricButton}>
+        <TouchableOpacity onPress={handleEditProfileMetric} style={styles.editMetricButton}>
           <Ionicons name="pencil" size={16} color="#4F46E5" />
           <Text style={styles.editMetricText}>Edit</Text>
         </TouchableOpacity>
       </View>
-
       <View style={styles.lastUpdatedContainer}>
         <Ionicons name="time-outline" size={14} color="#64748B" />
         <Text style={styles.lastUpdatedText}>
           Updated {latestMeasurement ? new Date(latestMeasurement.measurementDate).toLocaleDateString() : "N/A"}
         </Text>
       </View>
-
       <View style={styles.healthMetricsGrid}>
         <View style={styles.healthMetricItem}>
           <View style={[styles.metricIconContainer,{ backgroundColor: "#EEF2FF" }]}>
@@ -216,7 +425,6 @@ const HealthSummaryCard = ({ profile,latestWeight,latestMeasurement,navigation }
           <Text style={styles.metricLabel}>Height</Text>
           <Text style={styles.metricValue}>{profile?.height ? `${profile.height} cm` : "N/A"}</Text>
         </View>
-
         <View style={styles.healthMetricItem}>
           <View style={[styles.metricIconContainer,{ backgroundColor: "#F0FDF4" }]}>
             <Ionicons name="scale-outline" size={20} color="#10B981" />
@@ -226,7 +434,6 @@ const HealthSummaryCard = ({ profile,latestWeight,latestMeasurement,navigation }
             {latestWeight ? `${latestWeight.weight} kg` : profile?.weight ? `${profile.weight} kg` : "N/A"}
           </Text>
         </View>
-
         <View style={styles.healthMetricItem}>
           <View style={[styles.metricIconContainer,{ backgroundColor: "#EFF6FF" }]}>
             <Ionicons name="analytics-outline" size={20} color="#3B82F6" />
@@ -241,7 +448,6 @@ const HealthSummaryCard = ({ profile,latestWeight,latestMeasurement,navigation }
             )}
           </View>
         </View>
-
         <View style={styles.healthMetricItem}>
           <View style={[styles.metricIconContainer,{ backgroundColor: "#FEF2F2" }]}>
             <Ionicons name="water-outline" size={20} color="#EF4444" />
@@ -260,23 +466,33 @@ const HealthSummaryCard = ({ profile,latestWeight,latestMeasurement,navigation }
   )
 }
 
-const SectionCard = ({ title,onAction,actionIcon,actionText,children }) => (
-  <View style={styles.sectionCard}>
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {onAction && (
-        <TouchableOpacity onPress={onAction} style={styles.actionButton}>
-          {actionText ? (
-            <Text style={styles.actionButtonText}>{actionText}</Text>
-          ) : (
-            <Ionicons name={actionIcon} size={18} color="#4F46E5" />
-          )}
-        </TouchableOpacity>
-      )}
+const SectionCard = ({ title,onAction,actionIcon,actionText,children,loading }) => {
+  if (loading) {
+    return (
+      <View style={styles.sectionCard}>
+        <View style={styles.skeletonCard} />
+      </View>
+    )
+  }
+
+  return (
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {onAction && (
+          <TouchableOpacity onPress={onAction} style={styles.actionButton}>
+            {actionText ? (
+              <Text style={styles.actionButtonText}>{actionText}</Text>
+            ) : (
+              <Ionicons name={actionIcon} size={18} color="#4F46E5" />
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+      <View style={styles.cardContent}>{children}</View>
     </View>
-    <View style={styles.cardContent}>{children}</View>
-  </View>
-)
+  )
+}
 
 const BodyMeasurementItem = ({ item }) => {
   const fields = [
@@ -305,7 +521,6 @@ const BodyMeasurementItem = ({ item }) => {
           </Text>
         </View>
       </View>
-
       <View style={styles.measurementGrid}>
         {fields.map(
           ({ key,label,unit }) =>
@@ -360,7 +575,7 @@ const WeightHistoryItem = ({ item,previousWeight }) => {
   )
 }
 
-const HealthGoalsCard = ({ profile,navigation }) => {
+const HealthGoalsCard = ({ profile,navigation,loading }) => {
   const goals = [
     {
       id: "1",
@@ -390,6 +605,10 @@ const HealthGoalsCard = ({ profile,navigation }) => {
     },
   ]
 
+  if (loading) {
+    return <SkeletonLoader />
+  }
+
   return (
     <View style={styles.goalsCard}>
       <View style={styles.goalsHeader}>
@@ -398,7 +617,6 @@ const HealthGoalsCard = ({ profile,navigation }) => {
           <Text style={styles.goalsEditText}>Edit Goals</Text>
         </TouchableOpacity>
       </View>
-
       {goals.map((goal) => (
         <View key={goal.id} style={styles.goalItem}>
           <View style={styles.goalHeader}>
@@ -410,7 +628,6 @@ const HealthGoalsCard = ({ profile,navigation }) => {
               {goal.current} / {goal.target} {goal.unit}
             </Text>
           </View>
-
           <View style={styles.goalProgressBar}>
             <View style={[styles.goalProgressFill,{ width: `${goal.progress}%`,backgroundColor: goal.color }]} />
           </View>
@@ -422,12 +639,6 @@ const HealthGoalsCard = ({ profile,navigation }) => {
 
 const SkeletonLoader = () => (
   <View style={styles.loadingContainer}>
-    <View style={styles.skeletonHeader} />
-    <View style={styles.skeletonAvatar} />
-    <View style={styles.skeletonText} />
-    <View style={styles.skeletonTextShort} />
-    <View style={styles.skeletonCard} />
-    <View style={styles.skeletonCard} />
     <View style={styles.skeletonCard} />
   </View>
 )
@@ -440,6 +651,9 @@ export default function ProfileScreen({ navigation }) {
     authLoading,
     navigation,
   )
+  const [headerHeight,setHeaderHeight] = useState(100)
+  const [showImageViewer,setShowImageViewer] = useState(false)
+  const insets = useSafeAreaInsets()
 
   const handleEditProfile = () => navigation.navigate("EditUserScreen",{ user: userData })
   const handleEditBody = () => navigation.navigate("EditProfile",{ profile })
@@ -463,37 +677,55 @@ export default function ProfileScreen({ navigation }) {
 
   const previousWeight = useMemo(() => {
     if (weightHistory.length <= 1) return null
-
     const sortedWeights = [...weightHistory].sort(
       (a,b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
     )
-
     return sortedWeights[1]?.weight || null
   },[weightHistory])
 
-  if (loading && !refreshing) {
-    return <SkeletonLoader />
+  const handleHeaderLayout = (event) => {
+    // const { height } = event.nativeEvent.layout;
+    // setHeaderHeight(height);
   }
+
+  const handleAvatarPress = () => {
+    if (userData?.avatar) {
+      setShowImageViewer(true)
+    }
+  }
+
+  useEffect(() => {
+    console.log("Header Height Updated:",headerHeight)
+  },[headerHeight])
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
+      <DynamicStatusBar backgroundColor="#4F46E5" />
+      <ProfileHeader
+        userData={userData}
+        onEdit={handleEditProfile}
+        onLayout={handleHeaderLayout}
+        headerHeight={headerHeight}
+        onAvatarPress={handleAvatarPress}
+      />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent,{ paddingTop: headerHeight || insets.top + 150 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#4F46E5"]} />}
       >
-        <ProfileHeader userData={userData} onEdit={handleEditProfile} />
-
-        <HealthSummaryCard profile={profile} navigation={navigation} latestWeight={latestWeight} latestMeasurement={latestMeasurement} />
-
-        <HealthGoalsCard profile={profile} navigation={navigation} />
-
+        <HealthSummaryCard
+          profile={profile}
+          navigation={navigation}
+          latestWeight={latestWeight}
+          latestMeasurement={latestMeasurement}
+          loading={loading.profile || loading.weightHistory || loading.bodyMeasurements}
+        />
+        <HealthGoalsCard profile={profile} navigation={navigation} loading={loading.profile} />
         <View style={styles.goalsCard}>
           <View style={styles.goalsHeader}>
             <Text style={styles.goalsTitle}>Body Metrics</Text>
-            <TouchableOpacity style={styles.goalsEditButton} onPress={() => handleEditBody()}>
+            <TouchableOpacity style={styles.goalsEditButton} onPress={handleEditBody}>
               <Text style={styles.goalsEditText}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -512,8 +744,12 @@ export default function ProfileScreen({ navigation }) {
             </View>
           </View>
         </View>
-
-        <SectionCard title="Latest Body Measurement" onAction={handleAddBodyMeasurement} actionIcon="add">
+        <SectionCard
+          title="Latest Body Measurement"
+          onAction={handleAddBodyMeasurement}
+          actionIcon="add"
+          loading={loading.bodyMeasurements}
+        >
           {latestMeasurement ? (
             <BodyMeasurementItem item={latestMeasurement} />
           ) : (
@@ -532,8 +768,12 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
           )}
         </SectionCard>
-
-        <SectionCard title="Latest Weight" onAction={handleAddWeightHistory} actionIcon="add">
+        <SectionCard
+          title="Latest Weight"
+          onAction={handleAddWeightHistory}
+          actionIcon="add"
+          loading={loading.weightHistory}
+        >
           {latestWeight ? (
             <WeightHistoryItem item={latestWeight} previousWeight={previousWeight} />
           ) : (
@@ -552,84 +792,132 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
           )}
         </SectionCard>
-
         <View style={styles.actionButtonsContainer}>
           <TouchableOpacity onPress={handleChangePassword} style={styles.changePasswordButton}>
             <Ionicons name="lock-closed-outline" size={18} color="#fff" style={styles.buttonIcon} />
             <Text style={styles.actionButtonText}>Change Password</Text>
           </TouchableOpacity>
-
           <TouchableOpacity onPress={() => navigation.navigate("HealthInsights")} style={styles.insightsButton}>
             <Ionicons name="bulb-outline" size={18} color="#fff" style={styles.buttonIcon} />
             <Text style={styles.actionButtonText}>Health Insights</Text>
           </TouchableOpacity>
         </View>
-
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* Image Zoom Viewer Modal - INTEGRATED HERE */}
+      {userData?.avatar && (
+        <ImageZoomViewer
+          visible={showImageViewer}
+          imageUri={userData.avatar}
+          onClose={() => setShowImageViewer(false)}
+          showDeleteButton={false}
+        />
+      )}
+      <FloatingMenuButton
+        initialPosition={{ x: 320,y: 200 }}
+        autoHide={true}
+        autoHideDelay={4000}
+      />
     </SafeAreaView>
   )
 }
 
+// Zoom Viewer Styles
+const zoomStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "space-between",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  imageContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageWrapper: {
+    width: width,
+    height: screenHeight * 0.7,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageTouchable: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  image: {
+    width: width - 40,
+    height: width - 40,
+    borderRadius: 20,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  zoomInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  zoomText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    marginLeft: 8,
+    opacity: 0.8,
+  },
+})
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#4F46E5",
+    backgroundColor: theme.primaryColor,
   },
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 0,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    padding: 16,
-  },
-  skeletonHeader: {
-    width: width,
-    height: 200,
-    backgroundColor: "#E2E8F0",
-    marginBottom: 16,
-  },
-  skeletonAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#E2E8F0",
-    marginBottom: 16,
-  },
-  skeletonText: {
-    width: width * 0.6,
-    height: 20,
-    backgroundColor: "#E2E8F0",
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  skeletonTextShort: {
-    width: width * 0.4,
-    height: 16,
-    backgroundColor: "#E2E8F0",
-    borderRadius: 4,
-    marginBottom: 16,
-  },
-  skeletonCard: {
-    width: width * 0.9,
-    height: 100,
-    backgroundColor: "#E2E8F0",
-    borderRadius: 16,
-    marginBottom: 16,
+  profileHeaderContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
   },
   profileHeader: {
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
     overflow: "hidden",
-    paddingBottom: 30,
+    paddingBottom: 0,
   },
   profileHeaderContent: {
     flexDirection: "row",
@@ -749,7 +1037,7 @@ const styles = StyleSheet.create({
   },
   healthSummaryCard: {
     marginHorizontal: 16,
-    marginTop: 10,
+    marginTop: 80,
     backgroundColor: "#fff",
     borderRadius: 20,
     shadowColor: "#000",
@@ -775,7 +1063,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    marginBottom: 10
+    marginBottom: 10,
   },
   lastUpdatedText: {
     fontSize: 12,
@@ -840,7 +1128,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    marginLeft: 8
+    marginLeft: 8,
   },
   bmiCategoryText: {
     fontSize: 10,
@@ -1130,6 +1418,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginHorizontal: 16,
     marginTop: 16,
+    marginBottom: 0,
     gap: 12,
   },
   changePasswordButton: {
@@ -1170,5 +1459,24 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 80,
+  },
+  loadingContainer: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0,height: 4 },
+    elevation: 4,
+    padding: 16,
+    height: 100,
+  },
+  skeletonCard: {
+    width: "100%",
+    height: 80,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 16,
   },
 })

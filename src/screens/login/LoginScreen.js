@@ -52,7 +52,6 @@ export default function LoginScreen() {
   const logoOpacity = new Animated.Value(1)
   const formTranslateY = new Animated.Value(0)
 
-  // Google Auth
   const [googleRequest,googleResponse,googlePromptAsync] = Google.useAuthRequest({
     expoClientId: GOOGLE_CLIENT_ID,
     iosClientId: GOOGLE_CLIENT_ID,

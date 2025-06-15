@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useContext } from "react";
+"use client"
+
+import { useState, useEffect } from "react"
 import {
   View,
   Text,
@@ -7,464 +9,506 @@ import {
   StyleSheet,
   Image,
   ScrollView,
-  Platform,
-  ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
+  ActivityIndicator,
   Dimensions,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import * as ImagePicker from "expo-image-picker";
-import { AuthContext } from "context/AuthContext";
-import CommunityService from "services/apiCommunityService";
+} from "react-native"
+import * as ImagePicker from "expo-image-picker"
+import { updatePost, getAllTags } from "../../services/apiCommunityService"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window")
 
-const EditPostScreen = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { user } = useContext(AuthContext);
+const EditPostScreen = ({ route, navigation }) => {
+  const { post } = route.params
+  const [content, setContent] = useState(post.content || "")
+  const [thumbnail, setThumbnail] = useState(post.thumbnail || "")
+  const [tags, setTags] = useState([])
+  const [selectedTags, setSelectedTags] = useState(post.tagIds || [])
+  const [loading, setLoading] = useState(false)
+  const [tagLoading, setTagLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [contentLength, setContentLength] = useState(post.content?.length || 0)
 
-  // Extracted state variables for editing post
-  const [editPostContent, setEditPostContent] = useState(route.params?.post?.content || "");
-  const [editPostImage, setEditPostImage] = useState(null);
-  const [editSelectedTags, setEditSelectedTags] = useState(route.params?.post?.tags || []);
-  const [isEditingPost, setIsEditingPost] = useState(false);
-  const [tags, setTags] = useState([]);
-
-  // Post data from route params
-  const post = route.params?.post;
-  const groupId = post?.groupId;
-  const postId = post?.postId;
-
-  // Fetch tags on mount
   useEffect(() => {
-    const fetchTags = async () => {
-      try {
-        const tagsData = await CommunityService.fetchTags();
-        setTags(tagsData);
-      } catch (error) {
-        Alert.alert("Error", "Failed to load tags: " + error.message);
-      }
-    };
-    fetchTags();
-  }, []);
+    getAllTags()
+      .then(setTags)
+      .catch(() => {})
+      .finally(() => setTagLoading(false))
+  }, [])
 
-  // Pick an image for editing post
-  const handlePickEditPostImage = async () => {
+  const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
+      quality: 0.7,
       base64: true,
-    });
-    if (!result.canceled && result.assets && result.assets[0]) {
-      setEditPostImage({
-        uri: result.assets[0].uri,
-        base64: result.assets[0].base64,
-        name: result.assets[0].fileName || "image.jpg",
-        type: result.assets[0].type || "image/jpeg",
-      });
+    })
+    if (!result.canceled && result.assets && result.assets[0].base64) {
+      setThumbnail(`data:image/jpeg;base64,${result.assets[0].base64}`)
     }
-  };
+  }
 
-  // Edit post function
-  const handleEditPost = async () => {
-    if (!editPostContent.trim() && !editPostImage && !post?.thumbnail) {
-      Alert.alert("Error", "Post content cannot be empty.");
-      return;
+  const handleTakePhoto = async () => {
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.7,
+      base64: true,
+    })
+    if (!result.canceled && result.assets && result.assets[0].base64) {
+      setThumbnail(`data:image/jpeg;base64,${result.assets[0].base64}`)
     }
-    setIsEditingPost(true);
+  }
+
+  const handleRemoveImage = () => {
+    Alert.alert("Xóa ảnh", "Bạn có chắc chắn muốn xóa ảnh này?", [
+      { text: "Hủy", style: "cancel" },
+      { text: "Xóa", style: "destructive", onPress: () => setThumbnail("") },
+    ])
+  }
+
+  const handleContentChange = (text) => {
+    setContent(text)
+    setContentLength(text.length)
+    if (error) setError("")
+  }
+
+  const handleSubmit = async () => {
+    if (!content.trim()) {
+      setError("Nội dung không được để trống")
+      return
+    }
+    setLoading(true)
+    setError("")
     try {
-      const content = editPostContent.trim() || post?.content || "";
-      const imageBase64 = editPostImage?.base64 || post?.thumbnail || null;
-      const tagIds = (editSelectedTags.length > 0 ? editSelectedTags : post?.tags || [])
-        .filter((tag) => tags.some((t) => t.tagId === tag.tagId))
-        .map((tag) => tag.tagId);
-
-      const response = await CommunityService.updatePost(postId, groupId, content, imageBase64, tagIds);
-      if (response.statusCode === 200) {
-        navigation.navigate("Community", {
-          groupId: groupId,
-          updatedPost: {
-            postId,
-            content,
-            thumbnail: imageBase64,
-            tags: editSelectedTags.length > 0 ? editSelectedTags : post.tags,
-          },
-        });
-        Alert.alert("Success", "Post updated successfully!");
-      } else {
-        throw new Error("Failed to update post");
+      const userStr = await AsyncStorage.getItem("user")
+      const user = userStr ? JSON.parse(userStr) : {}
+      const postDto = {
+        ...post,
+        userId: user.userId,
+        thumbnail,
+        content,
+        status: "active",
+        tagIds: selectedTags,
       }
-    } catch (error) {
-      Alert.alert("Error", error.message || "Failed to update post");
+      await updatePost(post.postId, postDto)
+      Alert.alert("Thành công", "Cập nhật bài viết thành công!", [{ text: "OK", onPress: () => navigation.goBack() }])
+    } catch (e) {
+      setError(e.message || "Cập nhật bài viết thất bại")
     } finally {
-      setIsEditingPost(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const isContentValid = editPostContent.trim() || editPostImage || post?.thumbnail;
+  const toggleTag = (tagId) => {
+    setSelectedTags(selectedTags.includes(tagId) ? selectedTags.filter((id) => id !== tagId) : [...selectedTags, tagId])
+  }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      {/* Enhanced Header */}
+    <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerBackButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.headerButtonText}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Post</Text>
+        <Text style={styles.headerTitle}>Chỉnh sửa bài viết</Text>
         <TouchableOpacity
-          style={[
-            styles.headerSaveButton,
-            !isContentValid && styles.headerSaveButtonDisabled,
-          ]}
-          onPress={handleEditPost}
-          disabled={!isContentValid || isEditingPost}
-          activeOpacity={0.8}
+          style={[styles.headerButton, styles.saveButton, loading && styles.saveButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={loading || !content.trim()}
         >
-          {isEditingPost ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.headerSaveText}>Save</Text>
-          )}
+          {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveButtonText}>Lưu</Text>}
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        contentContainerStyle={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Enhanced Text Input */}
-        <View style={styles.inputContainer}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Content Input */}
+        <View style={styles.inputSection}>
+          <View style={styles.userInfo}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>👤</Text>
+            </View>
+            <View style={styles.userDetails}>
+              <Text style={styles.userName}>Bạn</Text>
+              <Text style={styles.privacy}>🌍 Công khai</Text>
+            </View>
+          </View>
+
           <TextInput
-            style={styles.editPostInput}
-            placeholder="What's on your mind?"
-            placeholderTextColor="#8E8E93"
-            value={editPostContent}
-            onChangeText={setEditPostContent}
+            style={styles.contentInput}
+            placeholder="Bạn đang nghĩ gì?"
+            placeholderTextColor="#9CA3AF"
+            value={content}
+            onChangeText={handleContentChange}
             multiline
             maxLength={2000}
             textAlignVertical="top"
           />
+
           <View style={styles.characterCount}>
-            <Text style={styles.characterCountText}>
-              {editPostContent.length}/2000
+            <Text style={[styles.characterCountText, contentLength > 1800 && styles.characterCountWarning]}>
+              {contentLength}/2000
             </Text>
           </View>
         </View>
 
-        {/* Enhanced Image Preview */}
-        {(editPostImage || post?.thumbnail) && (
+        {/* Image Section */}
+        {thumbnail ? (
           <View style={styles.imageContainer}>
-            <View style={styles.imagePreview}>
-              <Image
-                source={{
-                  uri: editPostImage
-                    ? editPostImage.uri
-                    : post?.thumbnail?.startsWith("data:image") || post?.thumbnail?.startsWith("http")
-                    ? post.thumbnail
-                    : `data:image/jpeg;base64,${post?.thumbnail}`,
-                }}
-                style={styles.editImagePreview}
-                resizeMode="cover"
-              />
-              <TouchableOpacity
-                style={styles.removeImageButton}
-                onPress={() => setEditPostImage(null)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="close" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
+            <Image source={{ uri: thumbnail }} style={styles.imagePreview} />
+            <TouchableOpacity style={styles.removeImageButton} onPress={handleRemoveImage}>
+              <Text style={styles.removeImageText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {/* Media Options */}
+        <View style={styles.mediaSection}>
+          <Text style={styles.sectionTitle}>📷 Thêm vào bài viết</Text>
+          <View style={styles.mediaButtons}>
+            <TouchableOpacity style={styles.mediaButton} onPress={handlePickImage}>
+              <Text style={styles.mediaButtonIcon}>🖼️</Text>
+              <Text style={styles.mediaButtonText}>Ảnh/Video</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mediaButton} onPress={handleTakePhoto}>
+              <Text style={styles.mediaButtonIcon}>📸</Text>
+              <Text style={styles.mediaButtonText}>Camera</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Tags Section */}
+        <View style={styles.tagsSection}>
+          <Text style={styles.sectionTitle}>🏷️ Thẻ tag</Text>
+          {tagLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#6366F1" />
+              <Text style={styles.loadingText}>Đang tải thẻ tag...</Text>
             </View>
+          ) : (
+            <>
+              <Text style={styles.tagDescription}>Chọn thẻ tag phù hợp để tăng khả năng tiếp cận bài viết</Text>
+              <View style={styles.tagGrid}>
+                {tags.map((tag) => (
+                  <TouchableOpacity
+                    key={tag.tagId}
+                    style={[styles.tagItem, selectedTags.includes(tag.tagId) && styles.tagItemSelected]}
+                    onPress={() => toggleTag(tag.tagId)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[styles.tagText, selectedTags.includes(tag.tagId) && styles.tagTextSelected]}
+                      numberOfLines={1}
+                    >
+                      #{tag.tagName}
+                    </Text>
+                    {selectedTags.includes(tag.tagId) && <Text style={styles.tagCheckmark}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {selectedTags.length > 0 && (
+                <View style={styles.selectedTagsInfo}>
+                  <Text style={styles.selectedTagsText}>✨ Đã chọn {selectedTags.length} thẻ tag</Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* Error Message */}
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
-        {/* Enhanced Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <TouchableOpacity 
-            style={styles.actionButton} 
-            onPress={handlePickEditPostImage}
-            activeOpacity={0.7}
-          >
-            <View style={styles.actionButtonIcon}>
-              <Ionicons name="camera" size={20} color="#007AFF" />
-            </View>
-            <Text style={styles.actionButtonText}>
-              {editPostImage || post?.thumbnail ? 'Change Photo' : 'Add Photo'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Enhanced Tags Section */}
-        <View style={styles.tagsSection}>
-          <View style={styles.tagsSectionHeader}>
-            <Ionicons name="pricetag" size={18} color="#007AFF" />
-            <Text style={styles.tagsSectionTitle}>Tags</Text>
-          </View>
-          
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tagsScrollContainer}
-          >
-            {tags.map((item) => {
-              const isSelected = editSelectedTags.some((t) => t.tagId === item.tagId);
-              return (
-                <TouchableOpacity
-                  key={item.tagId}
-                  style={[styles.tagChip, isSelected && styles.selectedTagChip]}
-                  onPress={() =>
-                    setEditSelectedTags((prev) =>
-                      prev.some((t) => t.tagId === item.tagId)
-                        ? prev.filter((t) => t.tagId !== item.tagId)
-                        : [...prev, item]
-                    )
-                  }
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.tagChipText, isSelected && styles.selectedTagChipText]}>
-                    #{item.tagName}
-                  </Text>
-                  {isSelected && (
-                    <Ionicons name="checkmark" size={14} color="#FFFFFF" style={styles.tagCheckIcon} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacing} />
       </ScrollView>
-    </KeyboardAvoidingView>
-  );
-};
+    </View>
+  )
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: Platform.OS === "ios" ? 50 : 40,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 50,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: "#F3F4F6",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
   },
-  headerBackButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
-    borderRadius: 22,
-    backgroundColor: "#F2F2F7",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  headerButtonText: {
+    fontSize: 18,
+    color: "#6B7280",
+    fontWeight: "600",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    flex: 1,
-    textAlign: "center",
+    fontWeight: "bold",
+    color: "#1F2937",
   },
-  headerSaveButton: {
-    backgroundColor: "#007AFF",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    minWidth: 80,
-    alignItems: "center",
-    shadowColor: "#007AFF",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+  saveButton: {
+    backgroundColor: "#6366F1",
+    paddingHorizontal: 16,
+    width: "auto",
+    minWidth: 60,
   },
-  headerSaveButtonDisabled: {
-    backgroundColor: "#C7C7CC",
-    shadowOpacity: 0,
-    elevation: 0,
+  saveButtonDisabled: {
+    backgroundColor: "#D1D5DB",
   },
-  headerSaveText: {
+  saveButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
   },
-  scrollView: {
-    padding: 20,
-    paddingBottom: 40,
+  content: {
+    flex: 1,
   },
-  inputContainer: {
+  inputSection: {
+    padding: 20,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  editPostInput: {
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#6366F1",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  avatarText: {
+    fontSize: 20,
+    color: "#FFFFFF",
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
     fontSize: 16,
-    color: "#1a1a1a",
-    padding: 20,
-    minHeight: 140,
-    lineHeight: 22,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 2,
+  },
+  privacy: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  contentInput: {
+    fontSize: 18,
+    lineHeight: 26,
+    color: "#1F2937",
+    minHeight: 120,
+    textAlignVertical: "top",
+    paddingVertical: 0,
   },
   characterCount: {
     alignItems: "flex-end",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    marginTop: 8,
   },
   characterCountText: {
     fontSize: 12,
-    color: "#8E8E93",
+    color: "#9CA3AF",
+  },
+  characterCountWarning: {
+    color: "#EF4444",
+    fontWeight: "600",
   },
   imageContainer: {
+    position: "relative",
+    marginHorizontal: 20,
     marginBottom: 20,
   },
   imagePreview: {
-    position: "relative",
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  editImagePreview: {
     width: "100%",
-    height: 220,
+    height: 250,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
   },
   removeImageButton: {
     position: "absolute",
     top: 12,
     right: 12,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    borderRadius: 16,
     width: 32,
     height: 32,
-    alignItems: "center",
+    borderRadius: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
-  },
-  actionsContainer: {
-    marginBottom: 24,
-  },
-  actionButton: {
-    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+  },
+  removeImageText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  mediaSection: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    backgroundColor: "#F9FAFB",
+    marginBottom: 8,
   },
-  actionButtonIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F0F8FF",
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 12,
+  },
+  mediaButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  mediaButton: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  actionButtonText: {
-    fontSize: 16,
-    color: "#007AFF",
+  mediaButtonIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  mediaButtonText: {
+    fontSize: 14,
     fontWeight: "500",
+    color: "#374151",
   },
   tagsSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  tagsSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+  tagDescription: {
+    fontSize: 14,
+    color: "#6B7280",
     marginBottom: 16,
+    lineHeight: 20,
   },
-  tagsSectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    marginLeft: 8,
-  },
-  tagsScrollContainer: {
-    paddingVertical: 4,
-  },
-  tagChip: {
+  loadingContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F2F2F7",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  loadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  tagGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tagItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginRight: 12,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderColor: "#E5E7EB",
+    marginBottom: 8,
+    maxWidth: (width - 56) / 2,
   },
-  selectedTagChip: {
-    backgroundColor: "#007AFF",
-    borderColor: "#007AFF",
+  tagItemSelected: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#6366F1",
   },
-  tagChipText: {
+  tagText: {
     fontSize: 14,
-    color: "#007AFF",
+    color: "#374151",
     fontWeight: "500",
+    flex: 1,
   },
-  selectedTagChipText: {
-    color: "#FFFFFF",
+  tagTextSelected: {
+    color: "#6366F1",
     fontWeight: "600",
   },
-  tagCheckIcon: {
+  tagCheckmark: {
+    fontSize: 12,
+    color: "#6366F1",
+    fontWeight: "bold",
     marginLeft: 6,
   },
-});
+  selectedTagsInfo: {
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  selectedTagsText: {
+    fontSize: 14,
+    color: "#15803D",
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  errorIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#DC2626",
+    fontWeight: "500",
+    flex: 1,
+  },
+  bottomSpacing: {
+    height: 40,
+  },
+})
 
 export default EditPostScreen;

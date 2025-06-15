@@ -44,17 +44,14 @@ const WorkoutScreen = () => {
   const [refreshing,setRefreshing] = useState(false)
   const [showFilters,setShowFilters] = useState(false)
 
-  // Pagination states
   const [currentPage,setCurrentPage] = useState(1)
   const [totalPages,setTotalPages] = useState(1)
   const [totalItems,setTotalItems] = useState(0)
   const [hasNextPage,setHasNextPage] = useState(false)
   const [hasPrevPage,setHasPrevPage] = useState(false)
 
-  // Search states
   const [searchQuery,setSearchQuery] = useState("")
 
-  // Filter states - separate from applied filters
   const [filters,setFilters] = useState({
     pageNumber: 1,
     pageSize: 10,

@@ -1,5 +1,3 @@
-"use client"
-
 import { useState,useRef,useEffect } from "react"
 import {
   View,
@@ -19,6 +17,8 @@ import HomeScreen from "screens/home/HomeScreen"
 import ProfileScreen from "screens/profile/ProfileScreen"
 import SettingsScreen from "screens/setting/SettingsScreen"
 import CommunityScreen from "screens/community/CommunityScreen"
+import ServicePackageScreen from "screens/servicePackage/ServicePackageScreen"
+import ActiveGroupsScreen from "screens/community/ActiveGroupsScreen"
 
 const Tab = createBottomTabNavigator()
 const { width } = Dimensions.get("window")
@@ -30,7 +30,6 @@ function CustomTabBar({ state,descriptors,navigation }) {
   const opacityAnim = useRef(new Animated.Value(0)).current
   const buttonAnim = useRef(new Animated.Value(0)).current
 
-  // Animation for the modal and button
   useEffect(() => {
     if (modalVisible) {
       Animated.parallel([
@@ -144,6 +143,8 @@ function CustomTabBar({ state,descriptors,navigation }) {
                 break
               case "Profile":
                 iconName = "compass"
+              case "Services":
+                iconName = "fitness";
                 break
               default:
                 iconName = "apps"
@@ -307,9 +308,9 @@ export default function BottomTabNavigator() {
       }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Services" component={ServicePackageScreen} />
       <Tab.Screen name="Actions" component={HomeScreen} options={{ tabBarButton: () => null }} />
-      <Tab.Screen name="Community" component={CommunityScreen} />
+      <Tab.Screen name="Community" component={ActiveGroupsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   )

@@ -19,6 +19,8 @@ import { authService } from "services/apiAuthService"
 import { useAuth } from "context/AuthContext"
 import { LinearGradient } from "expo-linear-gradient"
 import { useFonts,Inter_400Regular,Inter_600SemiBold,Inter_700Bold } from "@expo-google-fonts/inter"
+import DynamicStatusBar from "screens/statusBar/DynamicStatusBar"
+import { theme } from "theme/color"
 
 export default function ChangePasswordScreen({ navigation }) {
   const { user } = useAuth()
@@ -228,9 +230,9 @@ export default function ChangePasswordScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
-
+      <DynamicStatusBar backgroundColor={theme.primaryColor} />
       <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
+
         <View style={styles.headerContent}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
@@ -439,7 +441,7 @@ export default function ChangePasswordScreen({ navigation }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#4F46E5",
+    backgroundColor: theme.primaryColor,
   },
   loadingContainer: {
     flex: 1,

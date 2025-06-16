@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { Pedometer } from "expo-sensors"
 import { LinearGradient } from "expo-linear-gradient"
 import { AuthContext } from "context/AuthContext"
+import FloatingMenuButton from "components/FloatingMenuButton"
 
 const { width,height } = Dimensions.get("window")
 const CIRCLE_SIZE = 200
@@ -478,6 +479,12 @@ export default function StepCounterScreen({ navigation }) {
                     </Text>
                 </Animated.View>
             </Animated.ScrollView>
+              <FloatingMenuButton
+                initialPosition={{ x: width - 70,y: height - 150 }}
+                autoHide={true}
+                navigation={navigation}
+                autoHideDelay={4000}
+            />
         </SafeAreaView>
     )
 }

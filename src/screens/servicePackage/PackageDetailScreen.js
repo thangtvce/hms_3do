@@ -1,4 +1,4 @@
-import { useState,useEffect,useRef,useCallback } from "react"
+import { useState,useEffect,useRef,useCallback } from "react";
 import {
   View,
   Text,
@@ -14,35 +14,35 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
-} from "react-native"
-import HTML from "react-native-render-html"
-import { LinearGradient } from "expo-linear-gradient"
-import { trainerService } from "services/apiTrainerService"
-import { useAuth } from "context/AuthContext"
-import { Feather,Ionicons,MaterialCommunityIcons } from "@expo/vector-icons"
-import DynamicStatusBar from "screens/statusBar/DynamicStatusBar"
-import { theme } from "theme/color"
+} from "react-native";
+import HTML from "react-native-render-html";
+import { LinearGradient } from "expo-linear-gradient";
+import { trainerService } from "services/apiTrainerService";
+import { useAuth } from "context/AuthContext";
+import { Feather,Ionicons,MaterialCommunityIcons } from "@expo/vector-icons";
+import DynamicStatusBar from "screens/statusBar/DynamicStatusBar";
+import { theme } from "theme/color";
+import { Share } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const { width,height } = Dimensions.get("window")
+const { width,height } = Dimensions.get("window");
 
 const PackageDetailScreen = ({ route,navigation }) => {
-  const { package: initialPackage } = route.params || {}
-  const { user } = useAuth()
-  const [packageData,setPackageData] = useState(initialPackage || null)
-  const [relatedPackages,setRelatedPackages] = useState([])
-  const [loading,setLoading] = useState(true)
-  const [loadingRelated,setLoadingRelated] = useState(false)
-  const [error,setError] = useState(null)
-  const [showFullDescription,setShowFullDescription] = useState(false)
+  const { package: initialPackage } = route.params || {};
+  const { user } = useAuth();
+  const [packageData,setPackageData] = useState(initialPackage || null);
+  const [relatedPackages,setRelatedPackages] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [loadingRelated,setLoadingRelated] = useState(false);
+  const [error,setError] = useState(null);
+  const [showFullDescription,setShowFullDescription] = useState(false);
+  const [isSaved,setIsSaved] = useState(false);
 
-  const fadeAnim = useRef(new Animated.Value(0)).current
-  const slideAnim = useRef(new Animated.Value(50)).current
-  const scaleAnim = useRef(new Animated.Value(0.9)).current
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    console.log("Initial Package:",JSON.stringify(initialPackage,null,2))
-
-    // Enhanced entrance animation
     Animated.parallel([
       Animated.timing(fadeAnim,{
         toValue: 1,
@@ -61,141 +61,254 @@ const PackageDetailScreen = ({ route,navigation }) => {
         friction: 8,
         useNativeDriver: true,
       }),
-    ]).start()
+    ]).start();
 
     return () => {
-      fadeAnim.setValue(0)
-      slideAnim.setValue(50)
-      scaleAnim.setValue(0.9)
-    }
-  },[])
+      fadeAnim.setValue(0);
+      slideAnim.setValue(50);
+      scaleAnim.setValue(0.9);
+    };
+  },[]);
+
+  useEffect(() => {
+    // Check if package is saved when packageData changes
+    const checkSavedStatus = async () => {
+      if (!packageData?.packageId) return;
+      try {
+        const savedPackages = await AsyncStorage.getItem("@SavedPackages");
+        const packages = savedPackages ? JSON.parse(savedPackages) : [];
+        setIsSaved(packages.some((pkg) => pkg.packageId === packageData.packageId));
+      } catch (error) {
+        console.error("Error checking saved status:",error);
+      }
+    };
+    checkSavedStatus();
+  },[packageData]);
 
   const withTimeout = (promise,ms = 10000) => {
     return Promise.race([
       promise,
       new Promise((_,reject) => setTimeout(() => reject(new Error("Request timed out")),ms)),
-    ])
-  }
+    ]);
+  };
 
   const fetchPackageDetail = useCallback(async () => {
     if (!initialPackage?.packageId) {
-      console.warn("Invalid initialPackage or missing packageId")
-      setError("Invalid package data provided.")
-      setLoading(false)
-      Alert.alert("Error","Invalid package data provided.",[{ text: "OK",onPress: () => navigation.goBack() }])
-      return
+      console.warn("Invalid initialPackage or missing packageId");
+      setError("Invalid package data provided.");
+      setLoading(false);
+      Alert.alert("Error","Invalid package data provided.",[
+        { text: "OK",onPress: () => navigation.goBack() },
+      ]);
+      return;
     }
 
     try {
-      setLoading(true)
-      setError(null)
-      const response = await withTimeout(trainerService.getServicePackageById(initialPackage?.packageId))
+      setLoading(true);
+      setError(null);
+      const response = await withTimeout(trainerService.getServicePackageById(initialPackage?.packageId));
       if (response.statusCode === 200 && response.data) {
-        setPackageData(response.data)
+        setPackageData(response.data);
         if (response.data.trainerId) {
-          fetchRelatedPackages(response.data.trainerId,response.data.packageId)
+          fetchRelatedPackages(response.data.trainerId,response.data.packageId);
         }
       } else {
-        const errorMessage = response.message || "Unknown error occurred"
-        console.warn("API Error:",errorMessage)
-        setError(`Error ${response.statusCode}: ${errorMessage}`)
-        setPackageData(null)
+        const errorMessage = response.message || "Unknown error occurred";
+        console.warn("API Error:",errorMessage);
+        setError(`Error ${response.statusCode}: ${errorMessage}`);
+        setPackageData(null);
       }
     } catch (error) {
-      const errorMessage = error.message || "An error occurred while loading package information"
-      console.error("Fetch Error:",error)
-      setError(`Error: ${errorMessage}`)
-      setPackageData(null)
+      const errorMessage = error.message || "An error occurred while loading package information";
+      console.error("Fetch Error:",error);
+      setError(`Error: ${errorMessage}`);
+      setPackageData(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  },[initialPackage?.packageId,navigation])
+  },[initialPackage?.packageId,navigation]);
 
   useEffect(() => {
-    fetchPackageDetail()
-  },[fetchPackageDetail])
+    fetchPackageDetail();
+  },[fetchPackageDetail]);
 
   const fetchRelatedPackages = async (trainerId,currentPackageId) => {
     try {
-      setLoadingRelated(true)
+      setLoadingRelated(true);
       const response = await withTimeout(
         trainerService.getAllActiveServicePackage({
           PageNumber: 1,
           PageSize: 4,
           TrainerId: trainerId,
-        }),
-      )
+        })
+      );
       if (response.statusCode === 200 && response.data?.packages) {
-        const filtered = response.data.packages.filter((pkg) => pkg.packageId !== currentPackageId).slice(0,4)
-        setRelatedPackages(filtered)
+        const filtered = response.data.packages
+          .filter((pkg) => pkg.packageId !== currentPackageId)
+          .slice(0,4);
+        setRelatedPackages(filtered);
       } else {
-        setRelatedPackages([])
+        setRelatedPackages([]);
       }
     } catch (error) {
-      console.error("Error fetching related packages:",error)
-      setRelatedPackages([])
+      console.error("Error fetching related packages:",error);
+      setRelatedPackages([]);
     } finally {
-      setLoadingRelated(false)
+      setLoadingRelated(false);
     }
-  }
+  };
 
   const getPackageIcon = (packageName) => {
-    if (!packageName) return "fitness"
-    const name = packageName.toLowerCase()
+    if (!packageName) return "fitness";
+    const name = packageName.toLowerCase();
     if (name.includes("yoga") || name.includes("meditation")) {
-      return "yoga"
+      return "yoga";
     } else if (name.includes("diet") || name.includes("nutrition")) {
-      return "nutrition"
+      return "nutrition";
     } else if (name.includes("cardio") || name.includes("running")) {
-      return "cardio"
+      return "cardio";
     } else if (name.includes("strength") || name.includes("weight")) {
-      return "strength"
+      return "strength";
     } else if (name.includes("wellness") || name.includes("mental")) {
-      return "wellness"
+      return "wellness";
     } else {
-      return "fitness"
+      return "fitness";
     }
-  }
+  };
 
   const renderPackageIcon = (type,size = 32) => {
-    const iconProps = { size,color: "#FFFFFF" }
+    const iconProps = { size,color: "#FFFFFF" };
 
     switch (type) {
       case "yoga":
-        return <MaterialCommunityIcons name="yoga" {...iconProps} />
+        return <MaterialCommunityIcons name="yoga" {...iconProps} />;
       case "nutrition":
-        return <Ionicons name="nutrition" {...iconProps} />
+        return <Ionicons name="nutrition" {...iconProps} />;
       case "cardio":
-        return <Ionicons name="heart" {...iconProps} />
+        return <Ionicons name="heart" {...iconProps} />;
       case "strength":
-        return <MaterialCommunityIcons name="weight-lifter" {...iconProps} />
+        return <MaterialCommunityIcons name="weight-lifter" {...iconProps} />;
       case "wellness":
-        return <MaterialCommunityIcons name="meditation" {...iconProps} />
+        return <MaterialCommunityIcons name="meditation" {...iconProps} />;
       default:
-        return <MaterialCommunityIcons name="dumbbell" {...iconProps} />
+        return <MaterialCommunityIcons name="dumbbell" {...iconProps} />;
     }
-  }
+  };
 
   const getPackageGradient = (type) => {
     switch (type) {
       case "yoga":
-        return ["#10B981","#059669"]
+        return ["#10B981","#059669"];
       case "nutrition":
-        return ["#F59E0B","#D97706"]
+        return ["#F59E0B","#D97706"];
       case "cardio":
-        return ["#EF4444","#DC2626"]
+        return ["#EF4444","#DC2626"];
       case "strength":
-        return ["#8B5CF6","#7C3AED"]
+        return ["#8B5CF6","#7C3AED"];
       case "wellness":
-        return ["#06B6D4","#0891B2"]
+        return ["#06B6D4","#0891B2"];
       default:
-        return ["#4F46E5","#3730A3"]
+        return ["#4F46E5","#3730A3"];
     }
-  }
+  };
 
   const isHtml = (text) => {
-    return /<([A-Za-z][A-Za-z0-9]*)\b[^>]*>(.*?)<\/\1>/.test(text || "")
-  }
+    return /<([A-Za-z][A-Za-z0-9]*)\b[^>]*>(.*?)<\/\1>/.test(text || "");
+  };
+
+  const stripHtmlAndTruncate = (text,maxLength = 150) => {
+    if (!text || typeof text !== "string") return "";
+    const plainText = text.replace(/<[^>]+>/g,"").replace(/\s+/g," ").trim();
+    if (plainText.length > maxLength) {
+      return plainText.substring(0,maxLength - 3) + "...";
+    }
+    return plainText;
+  };
+
+  const handleShareService = async () => {
+    try {
+      if (!packageData || !packageData.packageName) {
+        throw new Error("Invalid or missing service data");
+      }
+      const message = `
+Check out the "${packageData.packageName}" fitness service${packageData.trainerFullName ? ` with ${packageData.trainerFullName}` : ""} on HMS 3DO!
+${packageData.description ? `\n${stripHtmlAndTruncate(packageData.description,150)}` : ""}
+${packageData.price ? `\nPrice: $${packageData.price}` : ""}
+${packageData.durationDays ? `\nDuration: ${packageData.durationDays} days` : ""}
+\nJoin me on the fitness journey! Download HMS 3DO: ${Platform.OS === "ios" ? "https://apple.co/hms-3do" : "https://play.google.com/store/apps/details?id=com.hms3do"}
+    `.trim();
+
+      const shareOptions = {
+        title: "HMS 3DO Fitness Service",
+        message,
+        ...(Platform.OS === "ios" && { url: "https://apple.co/hms-3do" }),
+      };
+
+      const result = await Share.share(shareOptions);
+
+      if (result.action === Share.sharedAction && result.activityType) {
+        console.log(`Shared successfully via ${result.activityType}`);
+      } else if (result.action === Share.dismissedAction) {
+        console.log("Share dismissed");
+      }
+    } catch (error) {
+      console.error("Share Error:",error.message);
+      Alert.alert("Error",`Unable to share service details: ${error.message}`);
+    }
+  };
+
+  const handleContact = () => {
+    Alert.alert("Contact Trainer","Would you like to contact the trainer for more information?",[
+      { text: "Cancel",style: "cancel" },
+      { text: "Message",onPress: () => console.log("Open chat") },
+      { text: "Call",onPress: () => console.log("Make call") },
+    ]);
+  };
+
+  const handleSavePackage = async () => {
+    if (!user?.userId) {
+      Alert.alert("Login Required","Please log in to save this package.",[
+        { text: "Cancel",style: "cancel" },
+        { text: "Login",onPress: () => navigation.navigate("Login") },
+      ]);
+      return;
+    }
+
+    try {
+      const savedPackages = await AsyncStorage.getItem("@SavedPackages");
+      let packages = savedPackages ? JSON.parse(savedPackages) : [];
+
+      if (isSaved) {
+        // Unsave package
+        packages = packages.filter((pkg) => pkg.packageId !== packageData.packageId);
+        setIsSaved(false);
+        Alert.alert("Success","Package removed from saved list.");
+      } else {
+        // Save package
+        const packageToSave = {
+          packageId: packageData.packageId,
+          packageName: packageData.packageName,
+          trainerFullName: packageData.trainerFullName,
+          trainerAvatar: packageData.trainerAvatar,
+          price: packageData.price,
+          durationDays: packageData.durationDays,
+          description: packageData.description,
+          status: packageData.status,
+          createdDate: packageData.createdDate,
+          updatedDate: packageData.updatedDate,
+          trainerId: packageData.trainerId,
+        };
+        packages.push(packageToSave);
+        setIsSaved(true);
+        Alert.alert("Success","Package saved successfully!");
+      }
+
+      await AsyncStorage.setItem("@SavedPackages",JSON.stringify(packages));
+    } catch (error) {
+      console.error("Save Package Error:",error);
+      Alert.alert("Error","Unable to save package: " + error.message);
+    }
+  };
 
   const renderDescription = () => {
     if (!packageData?.description) {
@@ -209,66 +322,52 @@ const PackageDetailScreen = ({ route,navigation }) => {
             Detailed information about this package is not available at the moment.
           </Text>
         </View>
-      )
+      );
     }
 
-    const description = packageData.description
-    const isLongText = description.length > 200
-    const displayText = showFullDescription || !isLongText ? description : description.substring(0,200) + "..."
-
-    if (isHtml(description)) {
-      return (
-        <View style={styles.descriptionContainer}>
-          <HTML
-            source={{ html: displayText }}
-            contentWidth={width - 64}
-            tagsStyles={{
-              p: { marginBottom: 12,color: "#475569",fontSize: 16,lineHeight: 24 },
-              li: { color: "#475569",fontSize: 16,marginBottom: 6,lineHeight: 24 },
-              h1: { color: "#0F172A",fontSize: 22,fontWeight: "bold",marginVertical: 12 },
-              h2: { color: "#0F172A",fontSize: 20,fontWeight: "bold",marginVertical: 10 },
-              h3: { color: "#0F172A",fontSize: 18,fontWeight: "bold",marginVertical: 8 },
-              a: { color: "#4F46E5",textDecorationLine: "underline" },
-            }}
-            ignoredTags={["script","style"]}
-          />
-          {isLongText && (
-            <TouchableOpacity
-              style={styles.readMoreButton}
-              onPress={() => setShowFullDescription(!showFullDescription)}
-            >
-              <Text style={styles.readMoreText}>{showFullDescription ? "Show Less" : "Read More"}</Text>
-              <Ionicons name={showFullDescription ? "chevron-up" : "chevron-down"} size={16} color="#4F46E5" />
-            </TouchableOpacity>
-          )}
-        </View>
-      )
-    }
+    const description = packageData.description;
+    const isLongText = description.length > 200;
+    const displayText = showFullDescription || !isLongText ? description : description.substring(0,200) + "...";
 
     return (
       <View style={styles.descriptionContainer}>
-        <Text style={styles.descriptionText}>{displayText}</Text>
+        <HTML
+          source={{ html: displayText }}
+          contentWidth={width - 64}
+          tagsStyles={{
+            p: { marginBottom: 12,color: "#475569",fontSize: 16,lineHeight: 24 },
+            li: { color: "#475569",fontSize: 16,marginBottom: 6,lineHeight: 24 },
+            h1: { color: "#0F172A",fontSize: 22,fontWeight: "bold",marginVertical: 12 },
+            h2: { color: "#0F172A",fontSize: 20,fontWeight: "bold",marginVertical: 10 },
+            h3: { color: "#0F172A",fontSize: 18,fontWeight: "bold",marginVertical: 8 },
+            a: { color: "#4F46E5",textDecorationLine: "underline" },
+          }}
+          ignoredTags={["script","style"]}
+        />
         {isLongText && (
-          <TouchableOpacity style={styles.readMoreButton} onPress={() => setShowFullDescription(!showFullDescription)}>
+          <TouchableOpacity
+            style={styles.readMoreButton}
+            onPress={() => setShowFullDescription(!showFullDescription)}
+          >
             <Text style={styles.readMoreText}>{showFullDescription ? "Show Less" : "Read More"}</Text>
             <Ionicons name={showFullDescription ? "chevron-up" : "chevron-down"} size={16} color="#4F46E5" />
           </TouchableOpacity>
         )}
       </View>
-    )
-  }
+    );
+  };
 
   const handleCheckout = () => {
     if (!user?.userId) {
       Alert.alert("Login Required","Please log in to enroll in this package.",[
         { text: "Cancel",style: "cancel" },
         { text: "Login",onPress: () => navigation.navigate("Login") },
-      ])
-      return
+      ]);
+      return;
     }
     if (!packageData?.price || packageData.price <= 0) {
-      Alert.alert("Notice","Invalid service package price.")
-      return
+      Alert.alert("Notice","Invalid service package price.");
+      return;
     }
     navigation.navigate("Payment",{
       packageId: packageData.packageId,
@@ -277,20 +376,12 @@ const PackageDetailScreen = ({ route,navigation }) => {
       trainerId: packageData.trainerId || null,
       trainerFullName: packageData.trainerFullName,
       userId: user.userId,
-    })
-  }
-
-  const handleContact = () => {
-    Alert.alert("Contact Trainer","Would you like to contact the trainer for more information?",[
-      { text: "Cancel",style: "cancel" },
-      { text: "Message",onPress: () => console.log("Open chat") },
-      { text: "Call",onPress: () => console.log("Make call") },
-    ])
-  }
+    });
+  };
 
   const renderRelatedPackageItem = ({ item }) => {
-    const packageType = getPackageIcon(item.packageName)
-    const gradientColors = getPackageGradient(packageType)
+    const packageType = getPackageIcon(item.packageName);
+    const gradientColors = getPackageGradient(packageType);
 
     return (
       <TouchableOpacity
@@ -313,7 +404,9 @@ const PackageDetailScreen = ({ route,navigation }) => {
           </Text>
 
           <View style={styles.relatedPriceContainer}>
-            <Text style={styles.relatedPackagePrice}>{item.price ? `$${item.price.toLocaleString()}` : "Contact"}</Text>
+            <Text style={styles.relatedPackagePrice}>
+              {item.price ? `$${item.price.toLocaleString()}` : "Contact"}
+            </Text>
             <View style={styles.relatedDurationBadge}>
               <Ionicons name="time-outline" size={12} color="#64748B" />
               <Text style={styles.relatedDurationText}>{item.durationDays || "N/A"} days</Text>
@@ -321,11 +414,11 @@ const PackageDetailScreen = ({ route,navigation }) => {
           </View>
         </View>
       </TouchableOpacity>
-    )
-  }
+    );
+  };
 
   const renderRelatedPackages = () => {
-    if (relatedPackages.length === 0 && !loadingRelated) return null
+    if (relatedPackages.length === 0 && !loadingRelated) return null;
 
     return (
       <Animated.View
@@ -383,8 +476,8 @@ const PackageDetailScreen = ({ route,navigation }) => {
           </TouchableOpacity>
         )}
       </Animated.View>
-    )
-  }
+    );
+  };
 
   if (loading) {
     return (
@@ -399,7 +492,7 @@ const PackageDetailScreen = ({ route,navigation }) => {
           </View>
         </LinearGradient>
       </SafeAreaView>
-    )
+    );
   }
 
   if (!packageData || error) {
@@ -423,17 +516,15 @@ const PackageDetailScreen = ({ route,navigation }) => {
           </LinearGradient>
         </View>
       </SafeAreaView>
-    )
+    );
   }
 
-  const packageType = getPackageIcon(packageData.packageName)
-  const gradientColors = getPackageGradient(packageType)
+  const packageType = getPackageIcon(packageData.packageName);
+  const gradientColors = getPackageGradient(packageType);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <DynamicStatusBar backgroundColor={theme.primaryColor} />
-
-      {/* Enhanced Header */}
       <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
@@ -442,13 +533,12 @@ const PackageDetailScreen = ({ route,navigation }) => {
           <Text style={styles.headerTitle}>Package Details</Text>
           <Text style={styles.headerSubtitle}>Health & Fitness</Text>
         </View>
-        <TouchableOpacity style={styles.shareBtn} onPress={() => Alert.alert("Share","Share feature coming soon!")}>
+        <TouchableOpacity style={styles.shareBtn} onPress={() => handleShareService()}>
           <Ionicons name="share-outline" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </LinearGradient>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Enhanced Hero Section */}
         <Animated.View
           style={[
             styles.heroContainer,
@@ -468,10 +558,8 @@ const PackageDetailScreen = ({ route,navigation }) => {
               >
                 {renderPackageIcon(packageType,48)}
               </LinearGradient>
-
               <View style={styles.heroInfo}>
                 <Text style={styles.packageName}>{packageData.packageName || "Service Package"}</Text>
-
                 <View style={styles.tagContainer}>
                   <LinearGradient
                     colors={[`${gradientColors[0]}20`,`${gradientColors[1]}20`]}
@@ -491,7 +579,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
                                 : "General Fitness"}
                     </Text>
                   </LinearGradient>
-
                   <View style={[styles.statusTag,packageData.status === "Active" && styles.activeStatusTag]}>
                     <View
                       style={[
@@ -506,7 +593,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
                 </View>
               </View>
             </View>
-
             <LinearGradient colors={[`${gradientColors[0]}10`,`${gradientColors[1]}10`]} style={styles.priceContainer}>
               <View style={styles.priceHeader}>
                 <Ionicons name="pricetag" size={20} color={gradientColors[0]} />
@@ -524,8 +610,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
             </LinearGradient>
           </LinearGradient>
         </Animated.View>
-
-        {/* Enhanced Trainer Section */}
         <Animated.View
           style={[
             styles.trainerSection,
@@ -543,7 +627,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
               <Text style={styles.sectionTitle}>Your Personal Trainer</Text>
             </View>
           </View>
-
           <View style={styles.trainerCard}>
             <View style={styles.trainerAvatar}>
               {packageData.trainerAvatar ? (
@@ -555,11 +638,9 @@ const PackageDetailScreen = ({ route,navigation }) => {
               )}
               <View style={styles.onlineIndicator} />
             </View>
-
             <View style={styles.trainerInfo}>
               <Text style={styles.trainerName}>{packageData.trainerFullName || "Professional Trainer"}</Text>
               <Text style={styles.trainerTitle}>Certified Health & Fitness Coach</Text>
-
               <View style={styles.trainerStats}>
                 <View style={styles.statItem}>
                   <Ionicons name="star" size={16} color="#F59E0B" />
@@ -577,7 +658,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
                 </View>
               </View>
             </View>
-
             <TouchableOpacity style={styles.contactTrainerBtn} onPress={handleContact}>
               <LinearGradient colors={gradientColors} style={styles.contactBtnGradient}>
                 <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
@@ -585,8 +665,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
             </TouchableOpacity>
           </View>
         </Animated.View>
-
-        {/* Enhanced Package Details */}
         <Animated.View
           style={[
             styles.detailsSection,
@@ -604,7 +682,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
               <Text style={styles.sectionTitle}>Package Information</Text>
             </View>
           </View>
-
           <View style={styles.detailsGrid}>
             <View style={styles.detailItem}>
               <LinearGradient colors={["#EEF2FF","#F8FAFC"]} style={styles.detailIconContainer}>
@@ -623,7 +700,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
                 </Text>
               </View>
             </View>
-
             <View style={styles.detailItem}>
               <LinearGradient colors={["#F0FDF4","#F8FAFC"]} style={styles.detailIconContainer}>
                 <Ionicons name="time-outline" size={20} color="#10B981" />
@@ -635,7 +711,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
                 </Text>
               </View>
             </View>
-
             <View style={styles.detailItem}>
               <LinearGradient colors={["#FEF3C7","#F8FAFC"]} style={styles.detailIconContainer}>
                 <Ionicons name="fitness-outline" size={20} color="#F59E0B" />
@@ -645,7 +720,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
                 <Text style={styles.detailValue}>All Levels Welcome</Text>
               </View>
             </View>
-
             {packageData.updatedDate && (
               <View style={styles.detailItem}>
                 <LinearGradient colors={["#F3E8FF","#F8FAFC"]} style={styles.detailIconContainer}>
@@ -665,8 +739,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
             )}
           </View>
         </Animated.View>
-
-        {/* Enhanced Description Section */}
         <Animated.View
           style={[
             styles.descriptionSection,
@@ -686,8 +758,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
           </View>
           {renderDescription()}
         </Animated.View>
-
-        {/* Enhanced Features Section */}
         {packageData.features && packageData.features.length > 0 && (
           <Animated.View
             style={[
@@ -706,7 +776,6 @@ const PackageDetailScreen = ({ route,navigation }) => {
                 <Text style={styles.sectionTitle}>What's Included</Text>
               </View>
             </View>
-
             <View style={styles.featuresGrid}>
               {packageData.features.map((feature,index) => (
                 <View key={`feature-${index}`} style={styles.featureItem}>
@@ -719,11 +788,7 @@ const PackageDetailScreen = ({ route,navigation }) => {
             </View>
           </Animated.View>
         )}
-
-        {/* Related Packages */}
         {renderRelatedPackages()}
-
-        {/* Enhanced Action Buttons */}
         <Animated.View
           style={[
             styles.actionSection,
@@ -744,25 +809,24 @@ const PackageDetailScreen = ({ route,navigation }) => {
               </View>
             </LinearGradient>
           </TouchableOpacity>
-
           <View style={styles.secondaryActions}>
             <TouchableOpacity style={styles.secondaryButton} onPress={handleContact} activeOpacity={0.8}>
               <Ionicons name="chatbubble-outline" size={20} color={gradientColors[0]} />
               <Text style={[styles.secondaryButtonText,{ color: gradientColors[0] }]}>Contact Trainer</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.8}>
-              <Ionicons name="bookmark-outline" size={20} color={gradientColors[0]} />
-              <Text style={[styles.secondaryButtonText,{ color: gradientColors[0] }]}>Save Package</Text>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleSavePackage} activeOpacity={0.8}>
+              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={20} color={gradientColors[0]} />
+              <Text style={[styles.secondaryButtonText,{ color: gradientColors[0] }]}>
+                {isSaved ? "Unsave Package" : "Save Package"}
+              </Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
-
         <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -1455,6 +1519,6 @@ const styles = StyleSheet.create({
   bottomSpacing: {
     height: 40,
   },
-})
+});
 
-export default PackageDetailScreen
+export default PackageDetailScreen;

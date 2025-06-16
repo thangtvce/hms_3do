@@ -37,8 +37,10 @@ const menuItems = [
   { id: "5",title: "Workout",icon: "barbell-outline",description: "View workout plans" },
   { id: "6",title: "Nutrition",icon: "nutrition-outline",description: "Track your nutrition" },
   { id: "7",title: "Health Goals",icon: "flag-outline",description: "Set and track your health goals" },
-  { id: "8",title: "Logout",icon: "log-out-outline",description: "Sign out of your account" },
-]
+  { id: "8",title: "Leaderboard",icon: "trophy-outline",description: "View user rankings and achievements" },
+  { id: "9",title: "Saved Packages",icon: "bookmark-outline",description: "View your saved fitness packages" },
+  { id: "10",title: "Logout",icon: "log-out-outline",description: "Sign out of your account" },
+];
 
 const ImageZoomViewer = ({ visible,imageUri,onClose,onDelete,showDeleteButton = false }) => {
   const scale = useRef(new Animated.Value(1)).current
@@ -205,12 +207,6 @@ export default function SettingsScreen({ navigation }) {
   const [showLogoutModal,setShowLogoutModal] = useState(false)
   const [avatar,setAvatar] = useState(null)
   const [dataResponse,setDataResponse] = useState(null)
-  const [healthStats,setHealthStats] = useState({
-    bmi: null,
-    bodyFat: null,
-    lastWorkout: null,
-    streakDays: 0,
-  })
   const [refreshing,setRefreshing] = useState(false)
   const [error,setError] = useState(null)
   const [showImageOptions,setShowImageOptions] = useState(false)
@@ -437,20 +433,6 @@ export default function SettingsScreen({ navigation }) {
       if (response.statusCode === 200 && response.data) {
         setProfile(response.data.profile)
         setDataResponse(response.data)
-
-        if (response.data.profile.height && response.data.profile.weight) {
-          const heightInMeters = response.data.profile.height / 100
-          const bmi = (response.data.profile.weight / (heightInMeters * heightInMeters)).toFixed(1)
-          setHealthStats((prev) => ({ ...prev,bmi }))
-        }
-
-        setHealthStats((prev) => ({
-          ...prev,
-          bodyFat: response.data.profile.bodyFatPercentage || "20.5",
-          lastWorkout: "2 days ago",
-          streakDays: 5,
-        }))
-
         const storedAvatar = await AsyncStorage.getItem("userAvatar")
         if (storedAvatar) setAvatar(storedAvatar)
       } else {
@@ -525,6 +507,12 @@ export default function SettingsScreen({ navigation }) {
       case "Health Goals":
         navigation.navigate("HealthGoals")
         break
+      case "Leaderboard":
+        navigation.navigate("LeaderboardScreen")
+        break;
+      case "Saved Packages":
+        navigation.navigate("SavedPackagesScreen")
+        break;
       case "Logout":
         handleLogout()
         break
@@ -558,7 +546,7 @@ export default function SettingsScreen({ navigation }) {
         <DynamicStatusBar backgroundColor={theme.primaryColor} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2563EB" style={{ marginBottom: 16 }} />
-          <Text style={styles.loadingText}>Loading your profile...</Text>
+          <Text style={styles.loadingText}>Loading your settings...</Text>
         </View>
       </SafeAreaView>
     )
@@ -646,54 +634,6 @@ export default function SettingsScreen({ navigation }) {
               <View style={styles.profileBadge}>
                 <Ionicons name="fitness" size={12} color="#2563EB" />
                 <Text style={styles.profileBadgeText}>Health Enthusiast</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Health Stats Row */}
-        <View style={styles.statsContainer}>
-          <Text style={styles.statsTitle}>Health Overview</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Ionicons name="resize-outline" size={20} color="#2563EB" style={styles.statIcon} />
-              <Text style={styles.statLabel}>Height</Text>
-              <Text style={styles.statValue}>{profile?.height ? `${profile.height} cm` : "N/A"}</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Ionicons name="scale-outline" size={20} color="#2563EB" style={styles.statIcon} />
-              <Text style={styles.statLabel}>Weight</Text>
-              <Text style={styles.statValue}>{profile?.weight ? `${profile.weight} kg` : "N/A"}</Text>
-            </View>
-          </View>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Ionicons name="analytics-outline" size={20} color="#2563EB" style={styles.statIcon} />
-              <Text style={styles.statLabel}>BMI</Text>
-              <Text style={styles.statValue}>{healthStats.bmi || "N/A"}</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Ionicons name="water-outline" size={20} color="#2563EB" style={styles.statIcon} />
-              <Text style={styles.statLabel}>Body Fat</Text>
-              <Text style={styles.statValue}>{healthStats.bodyFat ? `${healthStats.bodyFat}%` : "N/A"}</Text>
-            </View>
-          </View>
-
-          <View style={styles.activityCard}>
-            <View style={styles.activityHeader}>
-              <Ionicons name="flame-outline" size={22} color="#FF6B35" />
-              <Text style={styles.activityTitle}>Activity Status</Text>
-            </View>
-            <View style={styles.activityStats}>
-              <View style={styles.activityStat}>
-                <Text style={styles.activityStatValue}>{healthStats.lastWorkout || "N/A"}</Text>
-                <Text style={styles.activityStatLabel}>Last Workout</Text>
-              </View>
-              <View style={styles.activityDivider} />
-              <View style={styles.activityStat}>
-                <Text style={styles.activityStatLabel}>Day Streak</Text>
-                <Text style={styles.activityStatValue}>{healthStats.streakDays}</Text>
               </View>
             </View>
           </View>
@@ -1078,92 +1018,6 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     fontWeight: "600",
     marginLeft: 4,
-  },
-  statsContainer: {
-    marginHorizontal: 16,
-    marginBottom: 20,
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 12,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-    gap: 12,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    alignItems: "center",
-    paddingVertical: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    shadowOffset: { width: 0,height: 2 },
-    elevation: 1,
-  },
-  statIcon: {
-    marginBottom: 6,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: "#64748B",
-    marginBottom: 4,
-    fontWeight: "500",
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2563EB",
-  },
-  activityCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
-    marginTop: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    shadowOffset: { width: 0,height: 2 },
-    elevation: 1,
-  },
-  activityHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  activityTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginLeft: 8,
-  },
-  activityStats: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  activityStat: {
-    alignItems: "center",
-    flex: 1,
-  },
-  activityStatValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FF6B35",
-    marginBottom: 4,
-  },
-  activityStatLabel: {
-    fontSize: 13,
-    color: "#64748B",
-  },
-  activityDivider: {
-    width: 1,
-    backgroundColor: "#E2E8F0",
   },
   premiumButton: {
     flexDirection: "row",

@@ -848,7 +848,7 @@ const NameStep = ({ formData,handleChange,error }) => {
         resizeMode="contain"
       />
 
-      <Text style={styles.stepTitle}>Welcome to HealthTrack</Text>
+      <Text style={styles.stepTitle}>Welcome to HMS</Text>
       <Text style={styles.stepDescription}>Let's start by getting to know you. What's your name?</Text>
 
       <View style={styles.inputContainer}>

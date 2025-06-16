@@ -22,6 +22,9 @@ import { AuthContext } from "context/AuthContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { ScrollView } from "react-native-gesture-handler";
+import FloatingMenuButton from "components/FloatingMenuButton";
+import DynamicStatusBar from "screens/statusBar/DynamicStatusBar";
+import { theme } from "theme/color";
 
 const { width,height } = Dimensions.get("window");
 const ITEM_HEIGHT = 120;
@@ -286,7 +289,7 @@ export default function NotificationScreen({ navigation }) {
     const renderStatsCard = () => (
         <View style={styles.statsCard}>
             <LinearGradient
-                colors={['#4F46E5','#7C3AED']}
+                colors={["#4F46E5","#6366F1","#818CF8"]}
                 style={styles.statsGradient}
                 start={{ x: 0,y: 0 }}
                 end={{ x: 1,y: 1 }}
@@ -467,7 +470,7 @@ export default function NotificationScreen({ navigation }) {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <StatusBar style="dark" />
+            <DynamicStatusBar backgroundColor={theme.primaryColor} />
 
             {/* Header */}
             <View style={styles.header}>
@@ -502,7 +505,7 @@ export default function NotificationScreen({ navigation }) {
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => setSearchQuery("")}>
-                            <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                            <Ionicons name="close-circle" size={20} color="#4F46E5" />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -578,6 +581,12 @@ export default function NotificationScreen({ navigation }) {
             </ScrollView>
 
             {renderFilterModal()}
+            <FloatingMenuButton
+                initialPosition={{ x: width - 70,y: height - 150 }}
+                autoHide={true}
+                navigation={navigation}
+                autoHideDelay={4000}
+            />
         </SafeAreaView>
     );
 }

@@ -325,7 +325,7 @@ const useProfileData = (user,authToken,authLoading,navigation) => {
   return { ...data,loading,refreshing,onRefresh }
 }
 
-const ProfileHeader = ({ userData,onEdit,onLayout,headerHeight,onAvatarPress }) => {
+const ProfileHeader = ({ userData,onEdit,onLayout,headerHeight,onAvatarPress,onCheckIn,onReset,hasCheckedIn }) => {
   const userLevel = userData?.levelAccount || 1
   const experience = userData?.experience || 0
   const currentStreak = userData?.currentStreak || 0
@@ -350,82 +350,125 @@ const ProfileHeader = ({ userData,onEdit,onLayout,headerHeight,onAvatarPress }) 
   }
 
   return (
-    <>
-      <View style={[styles.profileHeaderContainer,{ height: headerHeight,paddingTop: insets.top }]} onLayout={onLayout}>
-        <LinearGradient
-          colors={["#4F46E5","#6366F1","#818CF8"]}
-          start={{ x: 0,y: 0 }}
-          end={{ x: 1,y: 1 }}
-          style={styles.profileHeader}
-        >
-          <View style={styles.profileHeaderContent}>
-            <View style={styles.avatarContainer}>
-              {userData?.avatar ? (
-                <TouchableOpacity onPress={onAvatarPress}>
-                  <Image
-                    source={{ uri: userData.avatar }}
-                    style={styles.profileAvatar}
-                    onError={() => console.log("Error loading avatar")}
-                  />
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarFallbackText}>
-                    {userData?.fullName ? userData.fullName.charAt(0).toUpperCase() : "U"}
-                  </Text>
-                </View>
-              )}
-              <View style={styles.levelBadge}>
-                <Text style={styles.levelText}>{userLevel}</Text>
-              </View>
-            </View>
-
-            <View style={styles.profileInfoBox}>
-              <Text style={styles.profileName}>{userData?.fullName || "User"}</Text>
-              <Text style={styles.profileEmail}>{userData?.email || "N/A"}</Text>
-
-              {/* XP Progress */}
-              <View style={styles.levelProgressContainer}>
-                <View style={styles.levelProgressBar}>
-                  <Animated.View style={[styles.levelProgressFill,{ width: `${progress}%` }]} />
-                </View>
-                <Text style={styles.levelProgressText}>
-                  {experience}/{xpRequired} XP • Level {userLevel}
+    <View style={[styles.profileHeaderContainer,{ height: headerHeight,paddingTop: insets.top }]} onLayout={onLayout}>
+      <LinearGradient
+        colors={["#4F46E5","#6366F1","#818CF8"]}
+        start={{ x: 0,y: 0 }}
+        end={{ x: 1,y: 1 }}
+        style={styles.profileHeader}
+      >
+        <View style={styles.profileHeaderContent}>
+          <View style={styles.avatarContainer}>
+            {userData?.avatar ? (
+              <TouchableOpacity onPress={onAvatarPress}>
+                <Image
+                  source={{ uri: userData.avatar }}
+                  style={styles.profileAvatar}
+                  onError={() => console.log("Error loading avatar")}
+                />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarFallbackText}>
+                  {userData?.fullName ? userData.fullName.charAt(0).toUpperCase() : "U"}
                 </Text>
               </View>
+            )}
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>{userLevel}</Text>
+            </View>
+          </View>
 
-              {/* Streak Display */}
-              <View style={styles.streakContainer}>
-                <Text style={styles.streakEmoji}>{getStreakEmoji(currentStreak)}</Text>
-                <Text style={styles.streakText}>{getStreakMessage(currentStreak)}</Text>
+          <View style={styles.profileInfoBox}>
+            <Text style={styles.profileName}>{userData?.fullName || "User"}</Text>
+            <Text style={styles.profileEmail}>{userData?.email || "N/A"}</Text>
+
+            {/* XP Progress */}
+            <View style={styles.levelProgressContainer}>
+              <View style={styles.levelProgressBar}>
+                <Animated.View style={[styles.levelProgressFill,{ width: `${progress}%` }]} />
+              </View>
+              <Text style={styles.levelProgressText}>
+                {experience}/{xpRequired} XP • Level {userLevel}
+              </Text>
+            </View>
+
+            {/* Streak Display */}
+            <View style={styles.streakContainer}>
+              <Text style={styles.streakEmoji}>{getStreakEmoji(currentStreak)}</Text>
+              <Text style={styles.streakText}>{getStreakMessage(currentStreak)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={onEdit} style={styles.editProfileButton}>
+              <Ionicons name="pencil" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+
+        {hasCheckedIn ? (
+          <View style={styles.actionButtonsRow}>
+            <TouchableOpacity
+              onPress={onCheckIn}
+              style={[styles.checkInButton,hasCheckedIn && styles.checkInButtonDisabled]}
+              disabled={hasCheckedIn}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={hasCheckedIn ? ["#9CA3AF","#6B7280"] : ["#10B981","#059669"]}
+                style={styles.checkInButtonGradient}
+                start={{ x: 0,y: 0 }}
+                end={{ x: 1,y: 0 }}
+              >
+                <View style={styles.checkInButtonContent}>
+                  <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                  <Text style={styles.checkInButtonText}>Daily Check-In</Text>
+                  <View style={styles.checkInBadge}>
+                    <Text style={styles.checkInBadgeText}>+10 XP</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={onReset} style={styles.resetButton} activeOpacity={0.7}>
+              <View style={styles.resetButtonContent}>
+                <Ionicons name="refresh" size={18} color="#EF4444" />
+                <Text style={styles.resetButtonText}>Reset</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.checkedInContainer}>
+            <View style={styles.checkedInContent}>
+              <View style={styles.checkedInIconContainer}>
+                <Ionicons name="checkmark-circle" size={32} color="#10B981" />
+              </View>
+              <View style={styles.checkedInTextContainer}>
+                <Text style={styles.checkedInTitle}>Checked-In 🎉</Text>
               </View>
             </View>
-
-            <View style={styles.headerActions}>
-              <TouchableOpacity onPress={onEdit} style={styles.editProfileButton}>
-                <Ionicons name="pencil" size={18} color="#fff" />
-              </TouchableOpacity>
-            </View>
           </View>
+        )}
 
-          {/* Action Buttons */}
-          <View style={styles.profileTabs}>
-            <TouchableOpacity style={[styles.profileTab,styles.activeTab]}>
-              <Ionicons name="person" size={20} color="#fff" />
-              <Text style={styles.activeTabText}>Profile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.profileTab}>
-              <Ionicons name="trophy-outline" size={20} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.tabText}>Achievements</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.profileTab}>
-              <Ionicons name="analytics-outline" size={20} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.tabText}>Progress</Text>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
-      </View>
-    </>
+        <View style={styles.profileTabs}>
+          <TouchableOpacity style={[styles.profileTab,styles.activeTab]}>
+            <Ionicons name="person" size={20} color="#fff" />
+            <Text style={styles.activeTabText}>Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileTab}>
+            <Ionicons name="trophy-outline" size={20} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.tabText}>Achievements</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileTab}>
+            <Ionicons name="analytics-outline" size={20} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.tabText}>Progress</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    </View>
   )
 }
 
@@ -714,7 +757,7 @@ export default function ProfileScreen({ navigation }) {
     authLoading,
     navigation,
   )
-  const [headerHeight,setHeaderHeight] = useState(120)
+  const [headerHeight,setHeaderHeight] = useState(100)
   const [showImageViewer,setShowImageViewer] = useState(false)
   const insets = useSafeAreaInsets()
 
@@ -1137,6 +1180,127 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  actionButtonsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
+    alignItems: "center",
+  },
+  checkInButton: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#10B981",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  checkInButtonDisabled: {
+    shadowColor: "#9CA3AF",
+    shadowOpacity: 0.2,
+  },
+  checkInButtonGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+  },
+  checkInButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  checkInButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    marginLeft: 8,
+    letterSpacing: 0.5,
+  },
+  checkInBadge: {
+    position: "absolute",
+    right: -8,
+    top: -8,
+    backgroundColor: "#FBBF24",
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  checkInBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0,height: 1 },
+    textShadowRadius: 2,
+  },
+  resetButton: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    shadowColor: "#EF4444",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  resetButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resetButtonText: {
+    color: "#EF4444",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
+    letterSpacing: 0.3,
+  },
+  checkedInContainer: {
+    position: "relative",
+    right: 0,
+    width: 200,
+    marginLeft: 20,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    padding: 5,
+    marginBottom: 5,
+  },
+  checkedInContent: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    textAlign: "center"
+  },
+  checkedInIconContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: "50%",
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  checkedInTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
   profileTabs: {
     flexDirection: "row",
     borderTopWidth: 1,
@@ -1166,7 +1330,7 @@ const styles = StyleSheet.create({
   },
   healthSummaryCard: {
     marginHorizontal: 16,
-    marginTop: 100,
+    marginTop: 135,
     backgroundColor: "#fff",
     borderRadius: 20,
     shadowColor: "#000",

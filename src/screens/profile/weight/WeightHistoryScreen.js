@@ -18,6 +18,9 @@ import { weightHistoryService } from 'services/apiWeightHistoryService';
 import { useAuth } from 'context/AuthContext';
 import { LineChart } from 'react-native-chart-kit';
 import { useFocusEffect } from '@react-navigation/native';
+import DynamicStatusBar from 'screens/statusBar/DynamicStatusBar';
+import { theme } from 'theme/color';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -220,7 +223,6 @@ export default function WeightHistoryScreen({ navigation }) {
 
     const filteredHistory = filterHistoryByTimeFrame(history);
 
-    // Prepare chart data - limit to 10 entries and reverse for chronological order
     const chartData = {
         labels: filteredHistory.slice(0,10).reverse().map(item =>
             new Date(item.recordedAt).toLocaleDateString('en-US',{ month: 'short',day: 'numeric' })
@@ -228,7 +230,7 @@ export default function WeightHistoryScreen({ navigation }) {
         datasets: [{
             data: filteredHistory.length > 0
                 ? filteredHistory.slice(0,10).reverse().map(item => item.weight)
-                : [0], // Prevent chart errors with empty data
+                : [0],
         }]
     };
 
@@ -243,18 +245,19 @@ export default function WeightHistoryScreen({ navigation }) {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
-            <View style={styles.container}>
-                <View style={styles.header}>
+            <DynamicStatusBar backgroundColor={theme.primaryColor} />
+            <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
+                <View style={styles.headerContent}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color="#1F2937" />
+                        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Weight History</Text>
                     <TouchableOpacity onPress={handleAddWeight} style={styles.addButton}>
-                        <Ionicons name="add" size={24} color="#4F46E5" />
+                        <Ionicons name="add" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                 </View>
-
+            </LinearGradient>
+            <View style={styles.container}>
                 <FlatList
                     data={filteredHistory}
                     renderItem={renderItem}
@@ -401,36 +404,33 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+        paddingBottom: 16,
+    },
+    headerContent: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0,height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 2,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        paddingTop: 16,
     },
     backButton: {
         padding: 8,
+        borderRadius: "50%",
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        color: "#fff"
     },
     headerTitle: {
+        fontFamily: "Inter_600SemiBold",
         fontSize: 18,
-        fontWeight: '700',
-        color: '#1F2937',
+        color: "#FFFFFF",
+        textAlign: "center",
     },
     addButton: {
         padding: 8,
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        borderRadius: "50%",
+        color: "#FFFFFF"
     },
     statsContainer: {
         flexDirection: 'row',

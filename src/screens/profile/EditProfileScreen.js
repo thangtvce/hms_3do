@@ -19,6 +19,8 @@ import { profileService } from "services/apiProfileService"
 import { useAuth } from "context/AuthContext"
 import { LinearGradient } from "expo-linear-gradient"
 import { useFonts,Inter_400Regular,Inter_600SemiBold,Inter_700Bold } from "@expo-google-fonts/inter"
+import DynamicStatusBar from "screens/statusBar/DynamicStatusBar"
+import { theme } from "theme/color"
 
 const ACTIVITY_LEVELS = ["Sedentary","Lightly Active","Moderately Active","Very Active","Extremely Active"]
 
@@ -226,7 +228,7 @@ export default function EditProfileScreen({ navigation,route }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
+      <DynamicStatusBar backgroundColor={theme.primaryColor} />
 
       <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
         <View style={styles.headerContent}>
@@ -460,7 +462,7 @@ export default function EditProfileScreen({ navigation,route }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#4F46E5",
+    backgroundColor: theme.primaryColor,
   },
   loadingContainer: {
     flex: 1,
@@ -478,7 +480,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 16,
   },
   backButton: {
     padding: 8,
@@ -496,7 +497,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    marginTop: -20,
+    marginTop: 15,
   },
   scrollView: {
     flex: 1,

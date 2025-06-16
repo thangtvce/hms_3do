@@ -188,6 +188,38 @@ export const apiUserService = {
       throw error;
     }
   },
+
+  async checkInUser(type = 'checkin') {
+    try {
+      const response = await apiClient.post(`/User/checkin`,{
+        Type: type,
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getLeaderboard(queryParams = {}) {
+    console.log(queryParams.SortOrder)
+    try {
+      const params = {
+        PageNumber: queryParams.PageNumber || 1,
+        PageSize: queryParams.PageSize || 10,
+        Search: queryParams.SearchTerm || '',
+        SortBy: queryParams.SortBy || 'level',
+        SortDescending: queryParams.SortOrder == 'Descending' ? true : false,
+        StartDate: queryParams.StartDate ? new Date(queryParams.StartDate).toISOString().split('T')[0] : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        EndDate: queryParams.EndDate ? new Date(queryParams.EndDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      };
+      const response = await apiClient.get('/User/leaderboard',{
+        params
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
 export default apiUserService;

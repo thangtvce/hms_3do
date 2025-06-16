@@ -322,7 +322,7 @@ export default function LoginScreen() {
                   style={styles.logo}
                   resizeMode="cover"
                 />
-                <Text style={styles.appName}>HealthTrack</Text>
+                <Text style={styles.appName}>HMS</Text>
                 <Text style={styles.tagline}>Your health journey starts here</Text>
               </Animated.View>
             </LinearGradient>

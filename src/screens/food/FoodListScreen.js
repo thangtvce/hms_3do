@@ -35,7 +35,6 @@ const FoodListScreen = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 100],
@@ -49,7 +48,6 @@ const FoodListScreen = () => {
     extrapolate: 'clamp',
   });
 
-  // Fetch active categories
   const fetchCategories = async () => {
     try {
       setLoading(true);

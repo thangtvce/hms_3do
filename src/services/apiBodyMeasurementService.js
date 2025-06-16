@@ -53,32 +53,11 @@ apiClient.interceptors.response.use(
       const errorMessages = Object.values(error.response.data.errors).flat().join(', ');
       throw new Error(errorMessages || 'Invalid request data.');
     }
-
     throw new Error(error.response?.data?.message || error.message);
   }
 );
 
 export const bodyMeasurementService = {
-  async getAllMeasurements(queryParams = {}) {
-    try {
-      const response = await apiClient.get('/BodyMeasurement',{ params: queryParams });
-      console.log('getAllMeasurements response:',JSON.stringify(response.data,null,2));
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  async getMeasurementsByUserId(userId,queryParams = {}) {
-    try {
-      const response = await apiClient.get(`/BodyMeasurement/user/${userId}`,{ params: queryParams });
-      console.log('getMeasurementsByUserId response:',JSON.stringify(response.data,null,2));
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
-
   async getMyMeasurements(queryParams = {}) {
     try {
       const response = await apiClient.get('/BodyMeasurement/me',{ queryParams });
@@ -90,7 +69,7 @@ export const bodyMeasurementService = {
 
   async getMeasurementById(measurementId) {
     try {
-      const response = await apiClient.get(`/BodyMeasurement/${measurementId}`);
+      const response = await apiClient.get(`/BodyMeasurement/me/${measurementId}`);
       console.log('getMeasurementById response:',JSON.stringify(response.data,null,2));
       return response.data;
     } catch (error) {

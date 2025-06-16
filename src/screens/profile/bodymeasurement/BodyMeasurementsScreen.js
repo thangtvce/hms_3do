@@ -17,8 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { bodyMeasurementService } from 'services/apiBodyMeasurementService';
 import { useAuth } from 'context/AuthContext';
 import { useFocusEffect } from '@react-navigation/native';
+import DynamicStatusBar from 'screens/statusBar/DynamicStatusBar';
+import { theme } from 'theme/color';
+import { LinearGradient } from 'expo-linear-gradient';
+import FloatingMenuButton from 'components/FloatingMenuButton';
 
-const { width } = Dimensions.get('window');
+const { width,height } = Dimensions.get("window")
 
 export default function BodyMeasurementsScreen({ navigation }) {
   const { user,authToken } = useAuth();
@@ -32,7 +36,6 @@ export default function BodyMeasurementsScreen({ navigation }) {
       if (user && authToken) {
         const response = await bodyMeasurementService.getMyMeasurements({ pageNumber: 1,pageSize: 50 });
         if (response.statusCode === 200 && response.data) {
-          // Sort measurements by date (newest first)
           const sortedMeasurements = (response.data.records || []).sort((a,b) =>
             new Date(b.measurementDate) - new Date(a.measurementDate)
           );
@@ -93,8 +96,8 @@ export default function BodyMeasurementsScreen({ navigation }) {
             } catch (error) {
               Alert.alert('Error','Failed to delete measurement.');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -106,7 +109,7 @@ export default function BodyMeasurementsScreen({ navigation }) {
     return {
       value: Math.abs(change).toFixed(1),
       isIncrease: change > 0,
-      isDecrease: change < 0
+      isDecrease: change < 0,
     };
   };
 
@@ -116,7 +119,7 @@ export default function BodyMeasurementsScreen({ navigation }) {
     const formattedDate = date.toLocaleDateString('en-US',{
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     });
 
     const weightChange = getMeasurementChange(item,previousItem,'weight');
@@ -132,12 +135,20 @@ export default function BodyMeasurementsScreen({ navigation }) {
             <Ionicons name="calendar-outline" size={18} color="#64748B" />
             <Text style={styles.dateText}>{formattedDate}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => handleDeleteMeasurement(item.measurementId)}
-          >
-            <Ionicons name="trash-outline" size={20} color="#EF4444" />
-          </TouchableOpacity>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => handleEditMeasurement(item)}
+            >
+              <Ionicons name="pencil-outline" size={20} color="#2563EB" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeleteMeasurement(item.measurementId)}
+            >
+              <Ionicons name="trash-outline" size={20} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.mainMeasurement}>
@@ -146,20 +157,23 @@ export default function BodyMeasurementsScreen({ navigation }) {
             <Text style={styles.weightValue}>{item.weight} kg</Text>
 
             {weightChange && (
-              <View style={[
-                styles.changeContainer,
-                weightChange.isIncrease ? styles.increaseContainer :
-                  weightChange.isDecrease ? styles.decreaseContainer : null
-              ]}>
+              <View
+                style={[
+                  styles.changeContainer,
+                  weightChange.isIncrease ? styles.increaseContainer : weightChange.isDecrease ? styles.decreaseContainer : null,
+                ]}
+              >
                 <Ionicons
-                  name={weightChange.isIncrease ? "arrow-up" : "arrow-down"}
+                  name={weightChange.isIncrease ? 'arrow-up' : 'arrow-down'}
                   size={14}
-                  color={weightChange.isIncrease ? "#EF4444" : "#10B981"}
+                  color={weightChange.isIncrease ? '#EF4444' : '#10B981'}
                 />
-                <Text style={[
-                  styles.changeText,
-                  weightChange.isIncrease ? styles.increaseText : styles.decreaseText
-                ]}>
+                <Text
+                  style={[
+                    styles.changeText,
+                    weightChange.isIncrease ? styles.increaseText : styles.decreaseText,
+                  ]}
+                >
                   {weightChange.value} kg
                 </Text>
               </View>
@@ -239,7 +253,7 @@ export default function BodyMeasurementsScreen({ navigation }) {
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
+        <DynamicStatusBar backgroundColor={theme.primaryColor} />
         <ActivityIndicator size="large" color="#2563EB" />
         <Text style={styles.loadingText}>Loading measurements...</Text>
       </SafeAreaView>
@@ -248,15 +262,17 @@ export default function BodyMeasurementsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
+      <DynamicStatusBar backgroundColor={theme.primaryColor} />
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1E293B" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Body Measurements</Text>
-          <View style={styles.headerRight} />
-        </View>
+        <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Body Measurements</Text>
+            <View style={styles.headerRight} />
+          </View>
+        </LinearGradient>
 
         {measurements.length > 0 ? (
           <FlatList
@@ -300,6 +316,12 @@ export default function BodyMeasurementsScreen({ navigation }) {
           </TouchableOpacity>
         )}
       </View>
+      <FloatingMenuButton
+        initialPosition={{ x: width - 70,y: height - 180 }}
+        autoHide={true}
+        navigation={navigation}
+        autoHideDelay={4000}
+      />
     </SafeAreaView>
   );
 }
@@ -326,36 +348,27 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0,height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    paddingTop: 16,
   },
   backButton: {
     padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    color: "#fff"
   },
   headerTitle: {
+    fontFamily: "Inter_600SemiBold",
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  headerRight: {
-    width: 40,
+    color: "#FFFFFF",
+    textAlign: "center",
   },
   listContent: {
     padding: 16,
@@ -392,6 +405,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748B',
     marginLeft: 6,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  editButton: {
+    padding: 4,
+    marginRight: 8,
   },
   deleteButton: {
     padding: 4,
@@ -534,7 +555,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({

@@ -22,14 +22,14 @@ import { Ionicons } from "@expo/vector-icons"
 import { useNavigation } from "@react-navigation/native"
 import { workoutService } from "services/apiWorkoutService"
 import { LinearGradient } from "expo-linear-gradient"
+import DynamicStatusBar from "screens/statusBar/DynamicStatusBar"
+import { theme } from "theme/color"
 
 const { width,height } = Dimensions.get("window")
 
 const STATUS_OPTIONS = [
   { label: "All Status",value: "" },
-  { label: "Active",value: "active" },
-  { label: "Inactive",value: "inactive" },
-  { label: "Draft",value: "draft" },
+  { label: "Active",value: "active" }
 ]
 
 const PAGE_SIZE_OPTIONS = [5,10,15,20,25,50]
@@ -708,7 +708,7 @@ const WorkoutScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
+      <DynamicStatusBar backgroundColor={theme.primaryColor} />
 
       {/* Header */}
       <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
@@ -861,11 +861,11 @@ const WorkoutScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#4F46E5",
+    backgroundColor: theme.primaryColor,
   },
   header: {
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-    paddingBottom: 20,
+    paddingBottom: 15,
   },
   headerContent: {
     flexDirection: "row",
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     backgroundColor: "#F8FAFC",
-    marginTop: -10,
+    marginTop: 15,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 24,

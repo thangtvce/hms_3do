@@ -982,9 +982,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 24,
   },
+
   paginationContainer: {
     position: "absolute",
-    bottom: 100,
+    bottom: 90,
     left: 0,
     right: 0,
     flexDirection: "row",
@@ -994,6 +995,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0,height: -2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
+    backgroundColor: "#FFFFFF",
+    opacity: 0.4
   },
   paginationButton: {
     flexDirection: "row",
@@ -1001,7 +1004,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#4F46E5",
     paddingVertical: 5,
     paddingHorizontal: 5,
-    borderRadius: 12,
+    borderRadius: 10,
     shadowColor: "#4F46E5",
     shadowOffset: { width: 0,height: 2 },
     shadowOpacity: 0.3,

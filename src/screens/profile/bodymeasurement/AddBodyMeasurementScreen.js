@@ -11,10 +11,18 @@ import {
   Platform,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { bodyMeasurementService } from 'services/apiBodyMeasurementService';
 import { useAuth } from 'context/AuthContext';
+import { theme } from 'theme/color';
+import DynamicStatusBar from 'screens/statusBar/DynamicStatusBar';
+import { LinearGradient } from 'expo-linear-gradient';
+import FloatingMenuButton from 'components/FloatingMenuButton';
+
+const { width,height } = Dimensions.get("window")
 
 export default function AddBodyMeasurementScreen({ navigation }) {
   const { user } = useAuth();
@@ -30,11 +38,12 @@ export default function AddBodyMeasurementScreen({ navigation }) {
     neckCm: '',
     notes: '',
   });
-
   const [activeField,setActiveField] = useState(null);
+  const [isSubmitting,setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     try {
+      setIsSubmitting(true);
       if (!user || !user.userId) {
         Alert.alert('Error','You are not authenticated. Please log in.');
         navigation.replace('Login');
@@ -119,6 +128,8 @@ export default function AddBodyMeasurementScreen({ navigation }) {
     } catch (error) {
       console.log('Error adding measurement:',error);
       Alert.alert('Error',error.message || 'Failed to add body measurement.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -133,7 +144,7 @@ export default function AddBodyMeasurementScreen({ navigation }) {
         </View>
         <View style={[
           styles.inputWrapper,
-          activeField === field && styles.activeInput
+          activeField === field && styles.activeInput,
         ]}>
           <TextInput
             style={styles.input}
@@ -157,20 +168,21 @@ export default function AddBodyMeasurementScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <DynamicStatusBar backgroundColor={theme.primaryColor} />
+      <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Add Body Measurement</Text>
+          <View style={styles.headerRight} />
+        </View>
+      </LinearGradient>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1E293B" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Add Body Measurement</Text>
-          <View style={styles.headerRight} />
-        </View>
-
         <ScrollView
           style={styles.form}
           contentContainerStyle={styles.formContent}
@@ -210,7 +222,7 @@ export default function AddBodyMeasurementScreen({ navigation }) {
               <View style={[
                 styles.inputWrapper,
                 styles.notesWrapper,
-                activeField === 'notes' && styles.activeInput
+                activeField === 'notes' && styles.activeInput,
               ]}>
                 <TextInput
                   style={[styles.input,styles.notesInput]}
@@ -227,15 +239,29 @@ export default function AddBodyMeasurementScreen({ navigation }) {
             </View>
           </View>
 
-          <TouchableOpacity onPress={handleSubmit} style={styles.submitButton}>
-            <Ionicons name="save-outline" size={20} color="#FFFFFF" style={styles.submitIcon} />
-            <Text style={styles.submitButtonText}>Save Measurement</Text>
+          <TouchableOpacity
+            onPress={handleSubmit}
+            style={styles.submitButton}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="save-outline" size={20} color="#FFFFFF" style={styles.submitIcon} />
+                <Text style={styles.submitButtonText}>Save Measurement</Text>
+              </>
+            )}
           </TouchableOpacity>
-
-          {/* Add extra padding at the bottom to ensure the form is scrollable past the bottom tab bar */}
           <View style={styles.bottomPadding} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <FloatingMenuButton
+        initialPosition={{ x: width - 70,y: height - 100 }}
+        autoHide={true}
+        navigation={navigation}
+        autoHideDelay={4000}
+      />
     </SafeAreaView>
   );
 }
@@ -250,36 +276,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0,height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    paddingTop: 16,
   },
   backButton: {
     padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    color: "#fff"
   },
   headerTitle: {
+    fontFamily: "Inter_600SemiBold",
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  headerRight: {
-    width: 40,
+    color: "#FFFFFF",
+    textAlign: "center",
   },
   form: {
     flex: 1,
@@ -369,23 +386,23 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563EB',
-    paddingVertical: 14,
-    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4F46E5",
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginHorizontal: 16,
     marginTop: 8,
-    marginBottom: 16,
     ...Platform.select({
       ios: {
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0,height: 2 },
+        shadowColor: "#4F46E5",
+        shadowOffset: { width: 0,height: 4 },
         shadowOpacity: 0.3,
-        shadowRadius: 4,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 4,
+        elevation: 6,
       },
     }),
   },

@@ -10,8 +10,6 @@ import OtpScreen from 'screens/forgetpassword/OtpScreen';
 import ForgetPassword from 'screens/forgetpassword/ForgetPassword';
 import SettingsScreen from 'screens/setting/SettingsScreen';
 import ProfileScreen from 'screens/profile/ProfileScreen';
-import CommunityScreen from 'screens/community/CommunityScreen';
-import GroupScreen from 'screens/community/GroupsScreen';
 import EditProfileScreen from 'screens/profile/EditProfileScreen';
 import AddBodyMeasurementScreen from 'screens/profile/bodymeasurement/AddBodyMeasurementScreen';
 import AddWeightHistoryScreen from 'screens/profile/weight/AddWeightHistoryScreen';
@@ -40,6 +38,9 @@ import ActiveGroupsScreen from 'screens/community/ActiveGroupsScreen';
 import GroupDetailsScreen from 'screens/community/GroupDetailsScreen';
 import CreatePostScreen from 'screens/community/CreatePostScreen';
 import EditPostScreen from 'screens/community/EditPostScreen';
+import EditBodyMeasurementScreen from 'screens/profile/bodymeasurement/EditBodyMeasurementScreen';
+import LeaderboardScreen from 'screens/leaderboard/LeaderboardScreen';
+import SavedPackagesScreen from 'screens/servicePackage/SavedPackagesScreen';
 
 const Stack = createStackNavigator();
 
@@ -72,6 +73,7 @@ function RootNavigator() {
       <Stack.Screen name="EditWeightScreen" component={EditWeightScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="BodyMeasurements" component={BodyMeasurementsScreen} />
+      <Stack.Screen name="EditBodyMeasurement" component={EditBodyMeasurementScreen} />
       <Stack.Screen name="WeightHistory" component={WeightHistoryScreen} />
       <Stack.Screen name="EditUserScreen" component={EditUserScreen} />
       <Stack.Screen name="EditWeight" component={EditWeightScreen} />
@@ -85,6 +87,7 @@ function RootNavigator() {
       <Stack.Screen name="FoodScannerScreen" component={FoodScannerScreen} />
       <Stack.Screen name="ServicePackage" component={ServicePackageScreen} />
       <Stack.Screen name="PackageDetail" component={PackageDetailScreen} />
+      <Stack.Screen name="SavedPackagesScreen" component={SavedPackagesScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="QRPaymentScreen" component={QRPaymentScreen} />
       <Stack.Screen name="PaymentSuccessScreen" component={PaymentSuccessScreen} />
@@ -95,6 +98,7 @@ function RootNavigator() {
       <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
       <Stack.Screen name="CreatePostScreen" component={CreatePostScreen} />
       <Stack.Screen name="EditPostScreen" component={EditPostScreen} />
+      <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
     </Stack.Navigator>
   );
 }

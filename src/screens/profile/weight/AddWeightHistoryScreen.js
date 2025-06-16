@@ -18,6 +18,9 @@ import { weightHistoryService } from 'services/apiWeightHistoryService';
 import { useAuth } from 'context/AuthContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LineChart } from 'react-native-chart-kit';
+import { LinearGradient } from 'expo-linear-gradient';
+import { theme } from 'theme/color';
+import DynamicStatusBar from 'screens/statusBar/DynamicStatusBar';
 
 const { width } = Dimensions.get('window');
 
@@ -221,15 +224,18 @@ export default function AddWeightHistoryScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <DynamicStatusBar backgroundColor={theme.primaryColor} />
+      <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
+        <View style={styles.headerContent}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1E293B" />
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Add Weight</Text>
           <View style={styles.headerRight} />
         </View>
+      </LinearGradient>
+      <View style={styles.container}>
+
 
         <ScrollView
           style={styles.scrollView}
@@ -348,36 +354,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0,height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    paddingTop: 16,
   },
   backButton: {
     padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    color: "#fff"
   },
   headerTitle: {
+    fontFamily: "Inter_600SemiBold",
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  headerRight: {
-    width: 40,
+    color: "#FFFFFF",
+    textAlign: "center",
   },
   scrollView: {
     flex: 1,
@@ -514,7 +511,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     paddingVertical: 14,
     borderRadius: 10,
     marginTop: 8,

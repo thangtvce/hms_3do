@@ -35,7 +35,7 @@ const FloatingMenuButton = ({
             id: "home",
             title: "Home",
             icon: "home-outline",
-            onPress: () => navigation.navigate("Home"),
+            onPress: () => navigation.navigate("Main"),
             color: "#4F46E5",
             backgroundColor: "#EEF2FF",
         },
@@ -81,7 +81,6 @@ const FloatingMenuButton = ({
         },
     ];
 
-    // Animation values
     const positionX = useRef(new Animated.Value(initialPosition.x)).current;
     const positionY = useRef(new Animated.Value(initialPosition.y)).current;
     const scale = useRef(new Animated.Value(1)).current;
@@ -89,10 +88,8 @@ const FloatingMenuButton = ({
     const menuScale = useRef(new Animated.Value(0)).current;
     const menuOpacity = useRef(new Animated.Value(0)).current;
 
-    // Auto-hide timer
     const autoHideTimer = useRef(null);
 
-    // Reset auto-hide timer
     const resetAutoHideTimer = () => {
         if (autoHideTimer.current) {
             clearTimeout(autoHideTimer.current);
@@ -104,7 +101,6 @@ const FloatingMenuButton = ({
         }
     };
 
-    // Show/hide button
     const showButton = () => {
         setIsVisible(true);
         Animated.timing(opacity,{
@@ -125,7 +121,6 @@ const FloatingMenuButton = ({
         }
     };
 
-    // Pan responder for dragging with interpolated values
     const panResponder = useRef(
         PanResponder.create({
             onStartShouldSetPanResponder: () => true,
@@ -138,7 +133,6 @@ const FloatingMenuButton = ({
                     Vibration.vibrate(10);
                 }
 
-                // Scale up when dragging starts
                 Animated.parallel([
                     Animated.timing(scale,{
                         toValue: 1.1,
@@ -212,7 +206,6 @@ const FloatingMenuButton = ({
         })
     ).current;
 
-    // Toggle menu visibility
     const toggleMenu = () => {
         if (isMenuVisible) {
             closeMenu();
